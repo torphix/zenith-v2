@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyCkNdi6b9QC1xP59zdqfahp4RfInnixIGk</string>
+	<key>GCM_SENDER_ID</key>
+	<string>370265913377</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.jaixy.zenithv2</string>
+	<key>PROJECT_ID</key>
+	<string>zenith-v2-d027b</string>
+	<key>STORAGE_BUCKET</key>
+	<string>zenith-v2-d027b.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:370265913377:ios:c6fe7434282faf1cb48b60</string>
+</dict>
+</plist>

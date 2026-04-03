@@ -1,0 +1,59 @@
+name: zenith
+description: "Your 30-day transformation programme."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: any
+  firebase_auth: any
+  cloud_firestore: any
+  cloud_functions: any
+  firebase_messaging: any
+
+  # Payments
+  purchases_flutter: any
+
+  # UI
+  cupertino_icons: ^1.0.8
+  google_fonts: any
+  flutter_svg: any
+  lottie: any
+  shimmer: any
+  smooth_page_indicator: any
+  fl_chart: any
+  confetti: any
+
+
+  # Speech & PermissionsHer
+  permission_handler: any
+
+  # Utilities
+  intl: any
+  uuid: any
+  animations: ^2.1.1
+  flutter_animate: ^4.5.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+  # Code Generation
+  build_runner: any
+  freezed: any
+  json_serializable: any
+  riverpod_generator: any
+  riverpod_lint: any
+
+  # Testing
+  mocktail: any
+
+flutter:
+  uses-material-design: true

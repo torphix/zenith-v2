@@ -1,0 +1,52 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "zenith-v2-d027b",
+          "appId": "1:370265913377:android:30cb35ce7d087938b48b60",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "zenith-v2-d027b",
+          "appId": "1:370265913377:ios:c6fe7434282faf1cb48b60",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "zenith-v2-d027b",
+          "configurations": {
+            "android": "1:370265913377:android:30cb35ce7d087938b48b60",
+            "ios": "1:370265913377:ios:c6fe7434282faf1cb48b60"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "venv",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "source": "functions",
+      "runtime": "python313"
+    }
+  ]
+   
+}
