@@ -71,15 +71,14 @@ class ZenithTheme {
     FontStyle fontStyle = FontStyle.normal,
     double? height,
     double? letterSpacing,
-  }) =>
-      GoogleFonts.cormorantGaramond(
-        fontSize: fontSize,
-        fontWeight: fontWeight,
-        color: color,
-        fontStyle: fontStyle,
-        height: height,
-        letterSpacing: letterSpacing,
-      );
+  }) => GoogleFonts.cormorantGaramond(
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color,
+    fontStyle: fontStyle,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
 
   static TextStyle dmSans({
     double fontSize = 14,
@@ -88,26 +87,24 @@ class ZenithTheme {
     FontStyle fontStyle = FontStyle.normal,
     double? height,
     double? letterSpacing,
-  }) =>
-      GoogleFonts.dmSans(
-        fontSize: fontSize,
-        fontWeight: fontWeight,
-        color: color,
-        fontStyle: fontStyle,
-        height: height,
-        letterSpacing: letterSpacing,
-      );
+  }) => GoogleFonts.dmSans(
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color,
+    fontStyle: fontStyle,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
 
   static TextStyle mono({
     double fontSize = 14,
     FontWeight fontWeight = FontWeight.w500,
     Color color = ZenithColors.text,
-  }) =>
-      GoogleFonts.jetBrainsMono(
-        fontSize: fontSize,
-        fontWeight: fontWeight,
-        color: color,
-      );
+  }) => GoogleFonts.jetBrainsMono(
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color,
+  );
 
   // ── Glass card decoration ──
 
@@ -115,14 +112,11 @@ class ZenithTheme {
     double borderRadius = 20,
     Color? borderColor,
     Color? fill,
-  }) =>
-      BoxDecoration(
-        color: fill ?? Colors.white.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(
-          color: borderColor ?? ZenithColors.cardBorder,
-        ),
-      );
+  }) => BoxDecoration(
+    color: fill ?? Colors.white.withValues(alpha: 0.45),
+    borderRadius: BorderRadius.circular(borderRadius),
+    border: Border.all(color: borderColor ?? ZenithColors.cardBorder),
+  );
 
   // ── Full ThemeData ──
 
@@ -185,8 +179,10 @@ class ZenithTheme {
             width: 1.5,
           ),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 16,
+        ),
         hintStyle: GoogleFonts.dmSans(
           fontSize: 15,
           color: ZenithColors.textMuted,
@@ -263,9 +259,7 @@ class ZenithTheme {
       // ── Dialog ──
       dialogTheme: DialogThemeData(
         backgroundColor: ZenithColors.bg,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         titleTextStyle: GoogleFonts.cormorantGaramond(
           fontSize: 22,
           fontWeight: FontWeight.w600,
@@ -286,9 +280,7 @@ class ZenithTheme {
           fontWeight: FontWeight.w500,
           color: ZenithColors.primary,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       ),
@@ -316,8 +308,9 @@ class ZenithTheme {
 
       // ── Scrollbar ──
       scrollbarTheme: ScrollbarThemeData(
-        thumbColor:
-            WidgetStatePropertyAll(ZenithColors.primary.withValues(alpha: 0.2)),
+        thumbColor: WidgetStatePropertyAll(
+          ZenithColors.primary.withValues(alpha: 0.2),
+        ),
         radius: const Radius.circular(4),
       ),
 
