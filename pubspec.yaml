@@ -16,9 +16,10 @@ dependencies:
   cloud_firestore: any
   cloud_functions: any
   firebase_messaging: any
+  firebase_storage: any
 
-  # Payments
-  purchases_flutter: any
+  # State Management
+  provider: any
 
   # UI
   cupertino_icons: ^1.0.8
@@ -29,31 +30,22 @@ dependencies:
   smooth_page_indicator: any
   fl_chart: any
   confetti: any
+  flutter_animate: ^4.5.2
+  cached_network_image: any
 
-
-  # Speech & PermissionsHer
-  permission_handler: any
+  # Image
+  image_picker: any
 
   # Utilities
   intl: any
   uuid: any
-  animations: ^2.1.1
-  flutter_animate: ^4.5.2
+  path_provider: any
+  collection: any
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-
-  # Code Generation
-  build_runner: any
-  freezed: any
-  json_serializable: any
-  riverpod_generator: any
-  riverpod_lint: any
-
-  # Testing
-  mocktail: any
 
 flutter:
   uses-material-design: true

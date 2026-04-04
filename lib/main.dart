@@ -1,10 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:provider/provider.dart';
 
 import 'app.dart';
 import 'firebase_options.dart';
+import 'providers/app_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,7 +13,6 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Onboarding and Firestore require a signed-in user; no other auth flow exists yet.
   if (FirebaseAuth.instance.currentUser == null) {
     try {
       await FirebaseAuth.instance.signInAnonymously();
@@ -22,5 +22,10 @@ Future<void> main() async {
     }
   }
 
-  runApp(const ProviderScope(child: ZenithApp()));
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => AppProvider()..init(),
+      child: const ZenithApp(),
+    ),
+  );
 }
