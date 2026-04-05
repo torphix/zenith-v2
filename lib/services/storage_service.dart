@@ -48,4 +48,16 @@ class StorageService {
     );
     return ref.getDownloadURL();
   }
+
+  Future<String> uploadVoiceNote({
+    required String noteId,
+    required File file,
+  }) async {
+    final ref = _storage.ref('users/$_uid/voiceNotes/$noteId.m4a');
+    await ref.putFile(
+      file,
+      SettableMetadata(contentType: 'audio/mp4'),
+    );
+    return ref.getDownloadURL();
+  }
 }

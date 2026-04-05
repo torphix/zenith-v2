@@ -1,9 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:record/record.dart';
 
+import '../../models/adhoc_task.dart';
 import '../../models/habit.dart';
 import '../../models/stat_snapshot.dart';
 import '../../providers/app_provider.dart';
@@ -20,7 +24,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AppProvider>(
       builder: (context, app, _) {
-        if (app.programme == null) {
+        if (app.isLoading) {
           return Scaffold(
             backgroundColor: ZenithColors.bg,
             body: Center(
@@ -56,11 +60,13 @@ class _HomeBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final programme = app.programme!;
+    final programme = app.programme;
     final greeting = _greeting();
+    final isEvening = DateTime.now().hour >= 18;
 
     return Scaffold(
       backgroundColor: ZenithColors.bg,
+      floatingActionButton: _VoiceNoteFAB(app: app),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: app.refreshTodayData,
@@ -88,7 +94,9 @@ class _HomeBody extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Day ${programme.currentDay} of ${programme.name}',
+                                  programme != null
+                                      ? 'Day ${programme.currentDay} of ${programme.name}'
+                                      : 'No active programme',
                                   style: ZenithTheme.dmSans(
                                     fontSize: 13,
                                     color: ZenithColors.textLight,
@@ -133,14 +141,6 @@ class _HomeBody extends StatelessWidget {
                       ),
                       const SizedBox(height: 24),
 
-                      // ── Progress ring ──
-                      _ProgressRing(
-                        completionRate: app.todayCompletionRate,
-                        xp: app.todayXP,
-                        stats: app.stats,
-                      ),
-                      const SizedBox(height: 24),
-
                       // ── Quick stats ──
                       Row(
                         children: [
@@ -167,54 +167,209 @@ class _HomeBody extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 28),
-                      Text(
-                        'Today\'s Habits',
-                        style: ZenithTheme.cormorant(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
+
+                      // ── Today's progress ring ──
+                      if (app.habits.isNotEmpty)
+                        _ProgressRing(
+                          completionRate: app.todayCompletionRate,
+                          xp: app.todayXP,
+                          stats: app.stats,
                         ),
-                      ),
-                      const SizedBox(height: 12),
+                      if (app.habits.isNotEmpty) const SizedBox(height: 28),
+
+                      // ── Section: Today's Habits ──
+                      if (app.habits.isNotEmpty) ...[
+                        Text(
+                          'Today\'s Habits',
+                          style: ZenithTheme.cormorant(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                     ],
                   ),
                 ),
               ),
 
               // ── Habits list ──
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final habit = app.habits[index];
-                      final isCompleted = app.isHabitCompleted(habit.id);
-                      final completion =
-                          app.getCompletionForHabit(habit.id);
+              if (app.habits.isNotEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final habit = app.habits[index];
+                        final isCompleted = app.isHabitCompleted(habit.id);
+                        final completion =
+                            app.getCompletionForHabit(habit.id);
 
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _HabitCard(
-                          habit: habit,
-                          isCompleted: isCompleted,
-                          photoUrl: completion?.photoUrl,
-                          onToggle: () => app.toggleHabit(habit),
-                          onPhoto: () => _pickPhoto(context, app, habit),
-                        ),
-                      )
-                          .animate()
-                          .fadeIn(
-                            delay: (100 * index).ms,
-                            duration: 300.ms,
-                          )
-                          .slideX(begin: 0.05, end: 0);
-                    },
-                    childCount: app.habits.length,
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _HabitCard(
+                            habit: habit,
+                            isCompleted: isCompleted,
+                            photoUrl: completion?.photoUrl,
+                            onToggle: () => app.toggleHabit(habit),
+                            onPhoto: () => _pickPhoto(context, app, habit),
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(
+                              delay: (100 * index).ms,
+                              duration: 300.ms,
+                            )
+                            .slideX(begin: 0.05, end: 0);
+                      },
+                      childCount: app.habits.length,
+                    ),
                   ),
                 ),
-              ),
 
-              // ── Daily wrap button ──
-              if (app.todayCompletionRate > 0)
+              // ── Section: Voice-logged Tasks ──
+              if (app.todayAdhocTasks.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                    child: Row(
+                      children: [
+                        Icon(Icons.mic_rounded,
+                            size: 18, color: ZenithColors.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Voice-logged Tasks',
+                          style: ZenithTheme.cormorant(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              if (app.todayAdhocTasks.isNotEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final task = app.todayAdhocTasks[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _AdhocTaskCard(
+                            task: task,
+                            onToggle: () => app.toggleAdhocTask(task),
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(
+                              delay: (100 * index).ms,
+                              duration: 300.ms,
+                            )
+                            .slideX(begin: 0.05, end: 0);
+                      },
+                      childCount: app.todayAdhocTasks.length,
+                    ),
+                  ),
+                ),
+
+              // ── Processing voice note indicator ──
+              if (app.isProcessingVoiceNote)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 16),
+                    child: GlassCard(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: ZenithColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Processing your voice note...',
+                            style: ZenithTheme.dmSans(
+                              fontSize: 14,
+                              color: ZenithColors.textLight,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Evening: Daily Wrap CTA ──
+              if (isEvening && app.todayCompletionRate > 0)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                    child: GlassCard(
+                      padding: const EdgeInsets.all(20),
+                      color: ZenithColors.primaryDeep.withValues(alpha: 0.08),
+                      onTap: () async {
+                        final wrap = await app.generateDailyWrap();
+                        if (!context.mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DailyWrapScreen(wrap: wrap),
+                          ),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color:
+                                  ZenithColors.primary.withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.auto_awesome_rounded,
+                                size: 22, color: ZenithColors.primary),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Your Daily Wrap is ready',
+                                  style: ZenithTheme.dmSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Review your day with your AI coach',
+                                  style: ZenithTheme.dmSans(
+                                    fontSize: 13,
+                                    color: ZenithColors.textLight,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right_rounded,
+                              color: ZenithColors.textMuted),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Daily wrap button (non-evening fallback) ──
+              if (!isEvening && app.todayCompletionRate > 0)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -234,6 +389,42 @@ class _HomeBody extends StatelessWidget {
                         icon: const Icon(Icons.auto_awesome_rounded,
                             size: 18),
                         label: const Text('View Daily Wrap'),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Empty state when no habits and no tasks ──
+              if (app.habits.isEmpty && app.todayAdhocTasks.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 40),
+                          Icon(Icons.mic_rounded,
+                              size: 48, color: ZenithColors.primaryPale),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Record what you\'ve been up to',
+                            style: ZenithTheme.cormorant(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Tap the mic button to log tasks with your voice. '
+                            'Your AI coach will turn them into trackable tasks.',
+                            textAlign: TextAlign.center,
+                            style: ZenithTheme.dmSans(
+                              fontSize: 14,
+                              color: ZenithColors.textLight,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -261,6 +452,101 @@ class _HomeBody extends StatelessWidget {
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
+  }
+}
+
+// ── Voice Note FAB ──
+
+class _VoiceNoteFAB extends StatefulWidget {
+  final AppProvider app;
+  const _VoiceNoteFAB({required this.app});
+
+  @override
+  State<_VoiceNoteFAB> createState() => _VoiceNoteFABState();
+}
+
+class _VoiceNoteFABState extends State<_VoiceNoteFAB> {
+  final _recorder = AudioRecorder();
+  bool _isRecording = false;
+  String? _recordingPath;
+
+  @override
+  void dispose() {
+    _recorder.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleRecording() async {
+    if (_isRecording) {
+      await _stopAndProcess();
+    } else {
+      await _startRecording();
+    }
+  }
+
+  Future<void> _startRecording() async {
+    if (!await _recorder.hasPermission()) return;
+
+    final dir = await getTemporaryDirectory();
+    _recordingPath = '${dir.path}/voice_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+    await _recorder.start(
+      const RecordConfig(
+        encoder: AudioEncoder.aacLc,
+        sampleRate: 44100,
+        bitRate: 128000,
+      ),
+      path: _recordingPath!,
+    );
+
+    setState(() => _isRecording = true);
+    HapticFeedback.mediumImpact();
+  }
+
+  Future<void> _stopAndProcess() async {
+    final path = await _recorder.stop();
+    setState(() => _isRecording = false);
+    HapticFeedback.mediumImpact();
+
+    if (path != null) {
+      final file = File(path);
+      if (await file.exists()) {
+        widget.app.processVoiceNote(file);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _toggleRecording,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: _isRecording ? 72 : 60,
+        height: _isRecording ? 72 : 60,
+        decoration: BoxDecoration(
+          color: _isRecording
+              ? ZenithColors.danger
+              : ZenithColors.primary,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: (_isRecording
+                      ? ZenithColors.danger
+                      : ZenithColors.primary)
+                  .withValues(alpha: 0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Icon(
+          _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
+          color: Colors.white,
+          size: _isRecording ? 32 : 28,
+        ),
+      ),
+    );
   }
 }
 
@@ -482,6 +768,87 @@ class _HabitCard extends StatelessWidget {
                 color: ZenithColors.primary,
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Ad-hoc Task Card ──
+
+class _AdhocTaskCard extends StatelessWidget {
+  final AdhocTask task;
+  final VoidCallback onToggle;
+
+  const _AdhocTaskCard({
+    required this.task,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      onTap: onToggle,
+      padding: const EdgeInsets.all(16),
+      color: task.completed
+          ? ZenithColors.mint.withValues(alpha: 0.12)
+          : null,
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: task.completed
+                  ? ZenithColors.sage
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: task.completed
+                    ? ZenithColors.sage
+                    : ZenithColors.textMuted.withValues(alpha: 0.4),
+                width: 2,
+              ),
+            ),
+            child: task.completed
+                ? const Icon(Icons.check_rounded,
+                    size: 18, color: Colors.white)
+                : null,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: ZenithTheme.dmSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: task.completed
+                        ? ZenithColors.textLight
+                        : ZenithColors.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(Icons.mic_rounded,
+                        size: 12, color: ZenithColors.textMuted),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Voice logged${task.primaryStat != null ? ' +${task.xp} XP' : ''}',
+                      style: ZenithTheme.dmSans(
+                        fontSize: 12,
+                        color: ZenithColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

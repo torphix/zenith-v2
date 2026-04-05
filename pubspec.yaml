@@ -36,6 +36,10 @@ dependencies:
   # Image
   image_picker: any
 
+  # Audio
+  record: any
+  audioplayers: any
+
   # Utilities
   intl: any
   uuid: any
