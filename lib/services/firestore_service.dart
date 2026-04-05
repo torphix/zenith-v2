@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/adhoc_task.dart';
 import '../models/assessment.dart';
 import '../models/completion.dart';
 import '../models/habit.dart';
@@ -8,6 +9,7 @@ import '../models/programme.dart';
 import '../models/quest.dart';
 import '../models/stat_snapshot.dart';
 import '../models/user_profile.dart';
+import '../models/voice_note.dart';
 import '../models/wrap_data.dart';
 
 class FirestoreService {
@@ -212,5 +214,28 @@ class FirestoreService {
         .limit(limit)
         .get();
     return snap.docs.map((d) => WrapData.fromMap(d.data())).toList();
+  }
+
+  // ── Voice Notes ──
+
+  Future<void> saveVoiceNote(VoiceNote note) async {
+    await _userDoc.collection('voiceNotes').doc(note.id).set(note.toMap());
+  }
+
+  // ── Ad-hoc Tasks ──
+
+  Future<void> saveAdhocTask(AdhocTask task) async {
+    await _userDoc.collection('adhocTasks').doc(task.id).set(task.toMap());
+  }
+
+  Future<List<AdhocTask>> getAdhocTasksForDate(DateTime date) async {
+    final start = DateTime(date.year, date.month, date.day);
+    final end = start.add(const Duration(days: 1));
+    final snap = await _userDoc
+        .collection('adhocTasks')
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('date', isLessThan: Timestamp.fromDate(end))
+        .get();
+    return snap.docs.map((d) => AdhocTask.fromMap(d.data())).toList();
   }
 }

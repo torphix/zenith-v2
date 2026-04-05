@@ -60,6 +60,38 @@ class FunctionsService {
     return result.data['reply'] as String;
   }
 
+  /// Takes a voice note transcript and extracts tasks the user did or plans to do.
+  /// Returns a list of task maps: [{title, primaryStat, xp}]
+  Future<List<Map<String, dynamic>>> processVoiceNote({
+    required String transcript,
+    Map<String, dynamic>? profile,
+    Map<String, dynamic>? stats,
+    Map<String, dynamic>? activeProgramme,
+  }) async {
+    final callable = _functions.httpsCallable(
+      'processVoiceNote',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+    );
+    final result = await callable.call({
+      'transcript': transcript,
+      'profile': profile,
+      'stats': stats,
+      'activeProgramme': activeProgramme,
+    });
+    final tasks = result.data['tasks'] as List? ?? [];
+    return tasks.cast<Map<String, dynamic>>();
+  }
+
+  /// Transcribes an audio file URL to text.
+  Future<String> transcribeAudio({required String audioUrl}) async {
+    final callable = _functions.httpsCallable(
+      'transcribeAudio',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+    );
+    final result = await callable.call({'audioUrl': audioUrl});
+    return result.data['transcript'] as String? ?? '';
+  }
+
   Future<Map<String, dynamic>> generateLifeReview({
     required String programmeId,
     required Map<String, dynamic> stats,

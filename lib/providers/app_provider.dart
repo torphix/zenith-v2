@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/adhoc_task.dart';
 import '../models/archetype.dart';
 import '../models/assessment.dart';
 import '../models/coach_message.dart';
@@ -13,6 +14,7 @@ import '../models/programme.dart';
 import '../models/quest.dart';
 import '../models/stat_snapshot.dart';
 import '../models/user_profile.dart';
+import '../models/voice_note.dart';
 import '../models/wrap_data.dart';
 import '../services/firestore_service.dart';
 import '../services/functions_service.dart';
@@ -35,7 +37,9 @@ class AppProvider extends ChangeNotifier {
   StatSnapshot _stats = StatSnapshot();
   Archetype _archetype = Archetype.all.first;
   List<CoachMessage> _chatMessages = [];
+  List<AdhocTask> _todayAdhocTasks = [];
   bool _isLoading = false;
+  bool _isProcessingVoiceNote = false;
   String? _error;
 
   // ── Getters ──
@@ -48,7 +52,9 @@ class AppProvider extends ChangeNotifier {
   StatSnapshot get stats => _stats;
   Archetype get archetype => _archetype;
   List<CoachMessage> get chatMessages => _chatMessages;
+  List<AdhocTask> get todayAdhocTasks => _todayAdhocTasks;
   bool get isLoading => _isLoading;
+  bool get isProcessingVoiceNote => _isProcessingVoiceNote;
   String? get error => _error;
 
   bool get hasCompletedOnboarding => _profile?.onboardingComplete ?? false;
@@ -106,6 +112,7 @@ class AppProvider extends ChangeNotifier {
       _todayCompletions =
           await _firestore.getCompletionsForDate(DateTime.now());
     }
+    _todayAdhocTasks = await _firestore.getAdhocTasksForDate(DateTime.now());
   }
 
   // ── Onboarding ──
@@ -414,6 +421,23 @@ class AppProvider extends ChangeNotifier {
 
   // ── Coach Chat ──
 
+  /// Uploads a voice file, transcribes it, and returns the transcript
+  /// so it can be sent as a coach message.
+  Future<String?> uploadAndTranscribeForCoach(File audioFile) async {
+    try {
+      final noteId = _uuid.v4();
+      final audioUrl = await _storage.uploadVoiceNote(
+        noteId: noteId,
+        file: audioFile,
+      );
+      final transcript =
+          await _functions.transcribeAudio(audioUrl: audioUrl);
+      return transcript.isNotEmpty ? transcript : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> sendCoachMessage(String message) async {
     _chatMessages.add(CoachMessage(role: 'user', content: message));
     notifyListeners();
@@ -440,15 +464,94 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Voice Notes & Ad-hoc Tasks ──
+
+  /// Records a voice note, uploads it, transcribes it, then uses AI to
+  /// extract ad-hoc tasks that get added to today's dashboard.
+  Future<void> processVoiceNote(File audioFile) async {
+    _isProcessingVoiceNote = true;
+    notifyListeners();
+
+    try {
+      final noteId = _uuid.v4();
+
+      // Upload audio
+      final audioUrl = await _storage.uploadVoiceNote(
+        noteId: noteId,
+        file: audioFile,
+      );
+
+      // Transcribe
+      final transcript =
+          await _functions.transcribeAudio(audioUrl: audioUrl);
+
+      // Save voice note
+      final voiceNote = VoiceNote(
+        id: noteId,
+        programmeId: _programme?.id,
+        audioUrl: audioUrl,
+        transcript: transcript,
+      );
+      await _firestore.saveVoiceNote(voiceNote);
+
+      // Extract tasks from transcript via AI
+      final taskMaps = await _functions.processVoiceNote(
+        transcript: transcript,
+        profile: _profile?.toMap(),
+        stats: _stats.toMap(),
+        activeProgramme: _programme?.toMap(),
+      );
+
+      // Create ad-hoc tasks
+      for (final t in taskMaps) {
+        final task = AdhocTask(
+          id: _uuid.v4(),
+          title: t['title'] as String? ?? '',
+          voiceNoteId: noteId,
+          completed: true, // user already did it
+          primaryStat: t['primaryStat'] as String?,
+          xp: (t['xp'] as num?)?.toInt() ?? 5,
+        );
+        await _firestore.saveAdhocTask(task);
+        _todayAdhocTasks.add(task);
+      }
+    } catch (e) {
+      _error = e.toString();
+    }
+
+    _isProcessingVoiceNote = false;
+    notifyListeners();
+  }
+
+  Future<void> addAdhocTask(String title) async {
+    final task = AdhocTask(
+      id: _uuid.v4(),
+      title: title,
+    );
+    await _firestore.saveAdhocTask(task);
+    _todayAdhocTasks.add(task);
+    notifyListeners();
+  }
+
+  Future<void> toggleAdhocTask(AdhocTask task) async {
+    final updated = task.copyWith(completed: !task.completed);
+    await _firestore.saveAdhocTask(updated);
+    _todayAdhocTasks = _todayAdhocTasks
+        .map((t) => t.id == updated.id ? updated : t)
+        .toList();
+    notifyListeners();
+  }
+
   // ── Refresh ──
 
   Future<void> refreshTodayData() async {
+    _todayAdhocTasks = await _firestore.getAdhocTasksForDate(DateTime.now());
     if (_programme != null) {
       _todayCompletions =
           await _firestore.getCompletionsForDate(DateTime.now());
       _stats = await _firestore.getStats();
       _archetype = Archetype.calculate(_stats.stats);
-      notifyListeners();
     }
+    notifyListeners();
   }
 }
