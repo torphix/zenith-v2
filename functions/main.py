@@ -544,3 +544,112 @@ Rules:
         result["customGoal"]["isActive"] = True
 
     return result
+
+
+# ── 5. transcribeAudio ───────────────────────────────────────────
+@https_fn.on_call(
+    timeout_sec=60,
+    memory=512,
+    secrets=[ANTHROPIC_API_KEY],
+)
+def transcribeAudio(req: https_fn.CallableRequest) -> dict:
+    """Transcribe an audio file URL to text using Claude's audio capabilities."""
+    import urllib.request
+
+    import base64
+
+    data = req.data or {}
+    audio_url = data.get("audioUrl", "")
+    if not audio_url:
+        return {"transcript": ""}
+
+    # Download the audio file
+    req_obj = urllib.request.Request(audio_url)
+    with urllib.request.urlopen(req_obj) as response:
+        audio_bytes = response.read()
+
+    audio_b64 = base64.standard_b64encode(audio_bytes).decode("utf-8")
+
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY.value)
+    message = client.messages.create(
+        model=MODEL,
+        max_tokens=4096,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "audio/mp4",
+                            "data": audio_b64,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": "Transcribe this audio exactly. Output ONLY the transcription, no commentary.",
+                    },
+                ],
+            }
+        ],
+    )
+    transcript = message.content[0].text.strip()
+    return {"transcript": transcript}
+
+
+# ── 6. processVoiceNote ──────────────────────────────────────────
+@https_fn.on_call(
+    timeout_sec=60,
+    memory=256,
+    secrets=[ANTHROPIC_API_KEY],
+)
+def processVoiceNote(req: https_fn.CallableRequest) -> dict:
+    """Extract actionable tasks from a voice note transcript."""
+    data = req.data or {}
+    transcript = data.get("transcript", "").strip()
+    profile = data.get("profile") or {}
+    stats = data.get("stats") or {}
+    active = data.get("activeProgramme")
+
+    if not transcript:
+        return {"tasks": []}
+
+    system = """You are Zenith, an AI life coach. You output ONLY valid JSON — no markdown,
+no commentary, no code fences."""
+
+    user = f"""A user recorded a voice note about things they did or plan to do today.
+Extract each distinct task or activity from the transcript.
+
+TRANSCRIPT: "{transcript}"
+
+USER CONTEXT:
+{json.dumps(profile, indent=2)}
+
+STATS:
+{json.dumps(stats, indent=2)}
+
+ACTIVE PROGRAMME:
+{json.dumps(active, indent=2) if active else "null"}
+
+Return this exact JSON:
+{{
+  "tasks": [
+    {{
+      "title": "Short, clear task title (3-8 words)",
+      "primaryStat": "body|mind|knowledge|heart|discipline|craft",
+      "xp": 5
+    }}
+  ]
+}}
+
+Rules:
+- Extract EVERY distinct activity mentioned (e.g. "I went to the gym and read a book" = 2 tasks)
+- Title should be action-oriented past tense (e.g. "Went to the gym", "Read for 30 minutes")
+- primaryStat should match the most relevant stat for that activity
+- xp: 5 for quick tasks, 10 for moderate effort, 15 for significant effort
+- If the transcript is unclear or contains no actionable tasks, return empty tasks array
+- Do NOT include things they said they want to do in the future — only things done or being done"""
+
+    raw = _call_claude(system, user, ANTHROPIC_API_KEY)
+    return _extract_json(raw)
