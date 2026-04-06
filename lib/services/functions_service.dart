@@ -1,8 +1,12 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
+import 'ai_service.dart';
+
 class FunctionsService {
   final _functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+  final _ai = AIService();
 
+  /// Generate a programme using on-device Gemini (Firebase AI SDK).
   Future<Map<String, dynamic>> generateProgramme({
     required Map<String, int> assessmentScores,
     String? northStarVision,
@@ -11,21 +15,16 @@ class FunctionsService {
     String commitmentLevel = '30',
     String energyPreference = 'balanced',
     int programmeNumber = 1,
-  }) async {
-    final callable = _functions.httpsCallable(
-      'generateZenithProgramme',
-      options: HttpsCallableOptions(timeout: const Duration(seconds: 120)),
+  }) {
+    return _ai.generateProgramme(
+      assessmentScores: assessmentScores,
+      northStarVision: northStarVision,
+      problems: problems,
+      goals: goals,
+      commitmentLevel: commitmentLevel,
+      energyPreference: energyPreference,
+      programmeNumber: programmeNumber,
     );
-    final result = await callable.call({
-      'assessmentScores': assessmentScores,
-      'northStarVision': northStarVision,
-      'problems': problems,
-      'goals': goals,
-      'commitmentLevel': commitmentLevel,
-      'energyPreference': energyPreference,
-      'programmeNumber': programmeNumber,
-    });
-    return Map<String, dynamic>.from(result.data);
   }
 
   Future<Map<String, dynamic>> parseNorthStar(String visionText) async {
@@ -37,6 +36,7 @@ class FunctionsService {
     return Map<String, dynamic>.from(result.data);
   }
 
+  /// Coach response using on-device Gemini (Firebase AI SDK).
   Future<String> getCoachResponse({
     required String userMessage,
     Map<String, dynamic>? profile,
@@ -44,42 +44,29 @@ class FunctionsService {
     Map<String, dynamic>? activeProgramme,
     List<String> recentReflections = const [],
     List<String> conversationHistory = const [],
-  }) async {
-    final callable = _functions.httpsCallable(
-      'generateCoachResponse',
-      options: HttpsCallableOptions(timeout: const Duration(seconds: 90)),
+  }) {
+    return _ai.getCoachResponse(
+      userMessage: userMessage,
+      profile: profile,
+      stats: stats,
+      activeProgramme: activeProgramme,
+      conversationHistory: conversationHistory,
     );
-    final result = await callable.call({
-      'userMessage': userMessage,
-      'profile': profile,
-      'stats': stats,
-      'activeProgramme': activeProgramme,
-      'recentReflections': recentReflections,
-      'conversationHistory': conversationHistory,
-    });
-    return result.data['reply'] as String;
   }
 
-  /// Takes a voice note transcript and extracts tasks the user did or plans to do.
-  /// Returns a list of task maps: [{title, primaryStat, xp}]
+  /// Extract tasks from voice note using on-device Gemini.
   Future<List<Map<String, dynamic>>> processVoiceNote({
     required String transcript,
     Map<String, dynamic>? profile,
     Map<String, dynamic>? stats,
     Map<String, dynamic>? activeProgramme,
-  }) async {
-    final callable = _functions.httpsCallable(
-      'processVoiceNote',
-      options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+  }) {
+    return _ai.processVoiceNote(
+      transcript: transcript,
+      profile: profile,
+      stats: stats,
+      activeProgramme: activeProgramme,
     );
-    final result = await callable.call({
-      'transcript': transcript,
-      'profile': profile,
-      'stats': stats,
-      'activeProgramme': activeProgramme,
-    });
-    final tasks = result.data['tasks'] as List? ?? [];
-    return tasks.cast<Map<String, dynamic>>();
   }
 
   /// Transcribes an audio file URL to text.
