@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:firebase_ai/firebase_ai.dart';
 
@@ -10,6 +12,8 @@ class AIService {
   GenerativeModel? _programmeModel;
   GenerativeModel? _coachModel;
   GenerativeModel? _voiceNoteModel;
+  GenerativeModel? _transcriptionModel;
+  GenerativeModel? _lifeReviewModel;
 
   /// Schema for programme generation structured output.
   static final _programmeSchema = Schema.object(
@@ -120,6 +124,45 @@ class AIService {
       generationConfig: GenerationConfig(
         responseMimeType: 'application/json',
         responseSchema: _voiceNoteSchema,
+      ),
+    );
+  }
+
+  GenerativeModel _getTranscriptionModel() {
+    return _transcriptionModel ??= FirebaseAI.googleAI().generativeModel(
+      model: 'gemini-2.5-flash',
+    );
+  }
+
+  /// Schema for life review structured output.
+  static final _lifeReviewSchema = Schema.object(
+    properties: {
+      'narrativeSummary': Schema.string(
+          description: '2-3 paragraph personal narrative of their journey'),
+      'keyWins': Schema.array(
+        items: Schema.string(),
+        description: '3 specific wins from their data',
+      ),
+      'areasForGrowth': Schema.array(
+        items: Schema.string(),
+        description: '2 constructive growth areas',
+      ),
+      'afterAssessment': Schema.object(
+        properties: {
+          'mind': Schema.integer(description: 'Score 1-10'),
+          'body': Schema.integer(description: 'Score 1-10'),
+          'discipline': Schema.integer(description: 'Score 1-10'),
+        },
+      ),
+    },
+  );
+
+  GenerativeModel _getLifeReviewModel() {
+    return _lifeReviewModel ??= FirebaseAI.googleAI().generativeModel(
+      model: 'gemini-2.5-flash',
+      generationConfig: GenerationConfig(
+        responseMimeType: 'application/json',
+        responseSchema: _lifeReviewSchema,
       ),
     );
   }
@@ -245,5 +288,53 @@ Rules:
     final parsed = jsonDecode(text) as Map<String, dynamic>;
     final tasks = parsed['tasks'] as List? ?? [];
     return tasks.cast<Map<String, dynamic>>();
+  }
+
+  /// Transcribe an audio file to text using Gemini multimodal.
+  Future<String> transcribeAudio({required File audioFile}) async {
+    Log.debug(_tag, 'Transcribing audio...');
+    final model = _getTranscriptionModel();
+    final bytes = await audioFile.readAsBytes();
+
+    final response = await model.generateContent([
+      Content.multi([
+        InlineDataPart('audio/mp4', bytes),
+        TextPart(
+          'Transcribe this audio recording word-for-word. '
+          'Return only the transcription text, nothing else. '
+          'If the audio is unclear or empty, return an empty string.',
+        ),
+      ]),
+    ]);
+
+    return response.text?.trim() ?? '';
+  }
+
+  /// Generate a life review from programme stats.
+  Future<Map<String, dynamic>> generateLifeReview({
+    required String programmeId,
+    required Map<String, dynamic> stats,
+    List<String> reflections = const [],
+  }) async {
+    final prompt = '''Write a life review based on this user's 30-day journey:
+
+Programme ID: $programmeId
+Stats: ${jsonEncode(stats)}
+User reflections: ${jsonEncode(reflections)}
+
+Rules:
+- Reference specific stats (streak, completion %, habits completed)
+- Be warm, encouraging, and specific - not generic
+- Key wins should reference real achievements from their data
+- Areas for growth should be constructive, not critical
+- After assessment should reflect improvement from their efforts''';
+
+    Log.debug(_tag, 'Generating life review...');
+    final model = _getLifeReviewModel();
+    final response = await model.generateContent([Content.text(prompt)]);
+    final text = response.text;
+    if (text == null) throw Exception('Empty response from AI');
+
+    return jsonDecode(text) as Map<String, dynamic>;
   }
 }

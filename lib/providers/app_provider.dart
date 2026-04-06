@@ -16,8 +16,8 @@ import '../models/stat_snapshot.dart';
 import '../models/user_profile.dart';
 import '../models/voice_note.dart';
 import '../models/wrap_data.dart';
+import '../services/ai_service.dart';
 import '../services/firestore_service.dart';
-import '../services/functions_service.dart';
 import '../services/logger.dart';
 import '../services/storage_service.dart';
 
@@ -26,7 +26,7 @@ const _tag = 'AppProvider';
 
 class AppProvider extends ChangeNotifier {
   final _firestore = FirestoreService();
-  final _functions = FunctionsService();
+  final _ai = AIService();
   final _storage = StorageService();
 
   // ── State ──
@@ -220,7 +220,7 @@ class AppProvider extends ChangeNotifier {
     String commitmentLevel = '30',
     String energyPreference = 'balanced',
   }) async {
-    final result = await _functions.generateProgramme(
+    final result = await _ai.generateProgramme(
       assessmentScores: assessmentScores,
       northStarVision: northStarVision,
       problems: problems,
@@ -471,17 +471,12 @@ class AppProvider extends ChangeNotifier {
 
   // ── Coach Chat ──
 
-  /// Uploads a voice file, transcribes it, and returns the transcript
+  /// Transcribes a voice file on-device and returns the transcript
   /// so it can be sent as a coach message.
   Future<String?> uploadAndTranscribeForCoach(File audioFile) async {
     try {
-      final noteId = _uuid.v4();
-      final audioUrl = await _storage.uploadVoiceNote(
-        noteId: noteId,
-        file: audioFile,
-      );
       final transcript =
-          await _functions.transcribeAudio(audioUrl: audioUrl);
+          await _ai.transcribeAudio(audioFile: audioFile);
       return transcript.isNotEmpty ? transcript : null;
     } catch (e, st) {
       Log.error(_tag, 'Failed to upload/transcribe for coach', e, st);
@@ -499,7 +494,7 @@ class AppProvider extends ChangeNotifier {
       final history =
           _chatMessages.map((m) => '${m.role}: ${m.content}').toList();
 
-      final reply = await _functions.getCoachResponse(
+      final reply = await _ai.getCoachResponse(
         userMessage: message,
         profile: _profile?.toMap(),
         stats: _stats.toMap(),
@@ -530,15 +525,15 @@ class AppProvider extends ChangeNotifier {
     try {
       final noteId = _uuid.v4();
 
+      // Transcribe on-device
+      final transcript =
+          await _ai.transcribeAudio(audioFile: audioFile);
+
       // Upload audio
       final audioUrl = await _storage.uploadVoiceNote(
         noteId: noteId,
         file: audioFile,
       );
-
-      // Transcribe
-      final transcript =
-          await _functions.transcribeAudio(audioUrl: audioUrl);
 
       // Save voice note
       final voiceNote = VoiceNote(
@@ -550,7 +545,7 @@ class AppProvider extends ChangeNotifier {
       await _firestore.saveVoiceNote(voiceNote);
 
       // Extract tasks from transcript via AI
-      final taskMaps = await _functions.processVoiceNote(
+      final taskMaps = await _ai.processVoiceNote(
         transcript: transcript,
         profile: _profile?.toMap(),
         stats: _stats.toMap(),
