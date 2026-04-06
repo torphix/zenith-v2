@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:firebase_ai/firebase_ai.dart';
 
@@ -12,7 +11,6 @@ class AIService {
   GenerativeModel? _programmeModel;
   GenerativeModel? _coachModel;
   GenerativeModel? _voiceNoteModel;
-  GenerativeModel? _transcriptionModel;
   GenerativeModel? _lifeReviewModel;
 
   /// Schema for programme generation structured output.
@@ -97,7 +95,30 @@ class AIService {
             'xp': Schema.integer(description: 'XP reward 1-20 based on effort'),
           },
         ),
-        description: 'Tasks extracted from the transcript',
+        description: 'Tasks extracted from the audio',
+      ),
+    },
+  );
+
+  /// Schema for life review structured output.
+  static final _lifeReviewSchema = Schema.object(
+    properties: {
+      'narrativeSummary': Schema.string(
+          description: '2-3 paragraph personal narrative of their journey'),
+      'keyWins': Schema.array(
+        items: Schema.string(),
+        description: '3 specific wins from their data',
+      ),
+      'areasForGrowth': Schema.array(
+        items: Schema.string(),
+        description: '2 constructive growth areas',
+      ),
+      'afterAssessment': Schema.object(
+        properties: {
+          'mind': Schema.integer(description: 'Score 1-10'),
+          'body': Schema.integer(description: 'Score 1-10'),
+          'discipline': Schema.integer(description: 'Score 1-10'),
+        },
       ),
     },
   );
@@ -127,35 +148,6 @@ class AIService {
       ),
     );
   }
-
-  GenerativeModel _getTranscriptionModel() {
-    return _transcriptionModel ??= FirebaseAI.googleAI().generativeModel(
-      model: 'gemini-2.5-flash',
-    );
-  }
-
-  /// Schema for life review structured output.
-  static final _lifeReviewSchema = Schema.object(
-    properties: {
-      'narrativeSummary': Schema.string(
-          description: '2-3 paragraph personal narrative of their journey'),
-      'keyWins': Schema.array(
-        items: Schema.string(),
-        description: '3 specific wins from their data',
-      ),
-      'areasForGrowth': Schema.array(
-        items: Schema.string(),
-        description: '2 constructive growth areas',
-      ),
-      'afterAssessment': Schema.object(
-        properties: {
-          'mind': Schema.integer(description: 'Score 1-10'),
-          'body': Schema.integer(description: 'Score 1-10'),
-          'discipline': Schema.integer(description: 'Score 1-10'),
-        },
-      ),
-    },
-  );
 
   GenerativeModel _getLifeReviewModel() {
     return _lifeReviewModel ??= FirebaseAI.googleAI().generativeModel(
@@ -220,7 +212,7 @@ Rules:
     return {'programme': parsed};
   }
 
-  /// Get a coach response.
+  /// Get a text coach response.
   Future<String> getCoachResponse({
     required String userMessage,
     Map<String, dynamic>? profile,
@@ -228,42 +220,61 @@ Rules:
     Map<String, dynamic>? activeProgramme,
     List<String> conversationHistory = const [],
   }) async {
-    final prompt = '''You are Zenith, an AI life coach. Reply with helpful, concise coaching.
-No JSON. No preamble like "Here is my response".
-
-USER CONTEXT:
-${jsonEncode(profile)}
-
-STATS:
-${jsonEncode(stats)}
-
-ACTIVE PROGRAMME:
-${activeProgramme != null ? jsonEncode(activeProgramme) : "null"}
-
-CONVERSATION HISTORY:
-${conversationHistory.take(12).join('\n')}
-
-USER MESSAGE: "$userMessage"
-
-Respond as Zenith. Match the user's energy preference from the profile when possible.
-Be concise (2-4 sentences unless more is needed). Reference their data when relevant.
-Be warm but honest. Don't be preachy.''';
-
     final model = _getCoachModel();
-    final response = await model.generateContent([Content.text(prompt)]);
+    final response = await model.generateContent([
+      Content.text(_coachSystemPrompt(
+        profile: profile,
+        stats: stats,
+        activeProgramme: activeProgramme,
+        conversationHistory: conversationHistory,
+        userMessage: userMessage,
+      )),
+    ]);
     return response.text?.trim() ?? 'I\'m here for you. Let\'s talk.';
   }
 
-  /// Extract tasks from a voice note transcript.
-  Future<List<Map<String, dynamic>>> processVoiceNote({
-    required String transcript,
+  /// Get a coach response from a voice message — sends audio straight to Gemini.
+  Future<String> getCoachResponseFromAudio({
+    required File audioFile,
+    Map<String, dynamic>? profile,
+    Map<String, dynamic>? stats,
+    Map<String, dynamic>? activeProgramme,
+    List<String> conversationHistory = const [],
+  }) async {
+    Log.debug(_tag, 'Sending voice to coach...');
+    final model = _getCoachModel();
+    final bytes = await audioFile.readAsBytes();
+
+    final response = await model.generateContent([
+      Content.multi([
+        InlineDataPart('audio/mp4', bytes),
+        TextPart(_coachSystemPrompt(
+          profile: profile,
+          stats: stats,
+          activeProgramme: activeProgramme,
+          conversationHistory: conversationHistory,
+          userMessage: '[Voice message — listen to the audio above]',
+        )),
+      ]),
+    ]);
+    return response.text?.trim() ?? 'I\'m here for you. Let\'s talk.';
+  }
+
+  /// Extract tasks directly from voice audio — no transcription step.
+  Future<List<Map<String, dynamic>>> processVoiceNoteAudio({
+    required File audioFile,
     Map<String, dynamic>? profile,
     Map<String, dynamic>? stats,
     Map<String, dynamic>? activeProgramme,
   }) async {
-    final prompt = '''Extract actionable tasks from this voice note transcript.
+    Log.debug(_tag, 'Processing voice note audio...');
+    final model = _getVoiceNoteModel();
+    final bytes = await audioFile.readAsBytes();
 
-TRANSCRIPT: "$transcript"
+    final response = await model.generateContent([
+      Content.multi([
+        InlineDataPart('audio/mp4', bytes),
+        TextPart('''Listen to this voice note and extract actionable tasks the user mentions.
 
 USER CONTEXT:
 ${jsonEncode(profile)}
@@ -275,39 +286,19 @@ ACTIVE PROGRAMME:
 ${activeProgramme != null ? jsonEncode(activeProgramme) : "null"}
 
 Rules:
-- Extract 1-5 tasks mentioned in the transcript
+- Extract 1-5 tasks mentioned in the audio
 - Each task should be a short, clear description
 - Assign a primaryStat (body, mind, knowledge, heart, discipline, craft) based on the task
-- Assign XP between 1-20 based on effort level''';
+- Assign XP between 1-20 based on effort level'''),
+      ]),
+    ]);
 
-    final model = _getVoiceNoteModel();
-    final response = await model.generateContent([Content.text(prompt)]);
     final text = response.text;
     if (text == null) return [];
 
     final parsed = jsonDecode(text) as Map<String, dynamic>;
     final tasks = parsed['tasks'] as List? ?? [];
     return tasks.cast<Map<String, dynamic>>();
-  }
-
-  /// Transcribe an audio file to text using Gemini multimodal.
-  Future<String> transcribeAudio({required File audioFile}) async {
-    Log.debug(_tag, 'Transcribing audio...');
-    final model = _getTranscriptionModel();
-    final bytes = await audioFile.readAsBytes();
-
-    final response = await model.generateContent([
-      Content.multi([
-        InlineDataPart('audio/mp4', bytes),
-        TextPart(
-          'Transcribe this audio recording word-for-word. '
-          'Return only the transcription text, nothing else. '
-          'If the audio is unclear or empty, return an empty string.',
-        ),
-      ]),
-    ]);
-
-    return response.text?.trim() ?? '';
   }
 
   /// Generate a life review from programme stats.
@@ -336,5 +327,34 @@ Rules:
     if (text == null) throw Exception('Empty response from AI');
 
     return jsonDecode(text) as Map<String, dynamic>;
+  }
+
+  String _coachSystemPrompt({
+    Map<String, dynamic>? profile,
+    Map<String, dynamic>? stats,
+    Map<String, dynamic>? activeProgramme,
+    List<String> conversationHistory = const [],
+    required String userMessage,
+  }) {
+    return '''You are Zenith, an AI life coach. Reply with helpful, concise coaching.
+No JSON. No preamble like "Here is my response".
+
+USER CONTEXT:
+${jsonEncode(profile)}
+
+STATS:
+${jsonEncode(stats)}
+
+ACTIVE PROGRAMME:
+${activeProgramme != null ? jsonEncode(activeProgramme) : "null"}
+
+CONVERSATION HISTORY:
+${conversationHistory.take(12).join('\n')}
+
+USER MESSAGE: "$userMessage"
+
+Respond as Zenith. Match the user's energy preference from the profile when possible.
+Be concise (2-4 sentences unless more is needed). Reference their data when relevant.
+Be warm but honest. Don't be preachy.''';
   }
 }

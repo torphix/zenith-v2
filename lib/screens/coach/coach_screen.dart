@@ -94,14 +94,12 @@ class _CoachScreenState extends State<CoachScreen> {
 
     final app = context.read<AppProvider>();
 
-    // Upload, transcribe, then send to coach
-    final transcript = await app.uploadAndTranscribeForCoach(file);
-    if (transcript != null) {
-      await app.sendCoachMessage(transcript);
-    } else {
-      if (mounted) {
-        final error = app.consumeError();
-        showErrorSnackbar(context, error ?? 'Failed to process voice message. Please try again.');
+    // Send audio straight to Gemini coach
+    await app.sendCoachVoiceMessage(file);
+    if (mounted) {
+      final error = app.consumeError();
+      if (error != null) {
+        showErrorSnackbar(context, error);
       }
     }
 
