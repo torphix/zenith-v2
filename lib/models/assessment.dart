@@ -29,6 +29,13 @@ class Assessment {
   factory Assessment.fromMap(Map<String, dynamic> map) => Assessment(
         id: map['id'] ?? '',
         scores: Map<String, int>.from(map['scores'] ?? {}),
-        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        createdAt: _parseDateTime(map['createdAt']),
       );
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+    return DateTime.now();
+  }
 }

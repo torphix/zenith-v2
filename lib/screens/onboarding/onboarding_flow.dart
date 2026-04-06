@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
@@ -6,7 +7,7 @@ import '../../models/assessment.dart';
 import '../../providers/app_provider.dart';
 import '../../theme.dart';
 import '../../widgets/glass_card.dart';
-import '../../widgets/selectable_chip_grid.dart';
+import '../../widgets/snackbar_helper.dart';
 import '../../widgets/typewriter_text.dart';
 import '../main_shell.dart';
 
@@ -59,6 +60,15 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     );
 
     if (!mounted) return;
+
+    final error = app.consumeError();
+    if (error != null) {
+      showErrorSnackbar(context, error);
+      // Go back to last real page so user can retry
+      setState(() => _isGenerating = false);
+      _pageController.jumpToPage(7);
+      return;
+    }
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const MainShell()),
@@ -299,116 +309,115 @@ class _AssessmentPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 32),
-          TypewriterText(
-            text: 'Rate your life right now.',
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Be honest. This is where growth begins.',
-            style: ZenithTheme.dmSans(
-              fontSize: 14,
-              color: ZenithColors.textLight,
-            ),
-          ),
-          const SizedBox(height: 32),
-          ...Assessment.pillars.map((pillar) {
-            final score = scores[pillar] ?? 5;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: GlassCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          _pillarIcons[pillar],
-                          size: 20,
-                          color: ZenithColors.primary,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          _pillarLabels[pillar] ?? pillar,
-                          style: ZenithTheme.dmSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '$score',
-                          style: ZenithTheme.mono(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: ZenithColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    SliderTheme(
-                      data: SliderThemeData(
-                        activeTrackColor: ZenithColors.primary,
-                        inactiveTrackColor:
-                            ZenithColors.primaryPale.withValues(alpha: 0.3),
-                        thumbColor: ZenithColors.primary,
-                        overlayColor:
-                            ZenithColors.primary.withValues(alpha: 0.1),
-                        trackHeight: 4,
-                        thumbShape: const RoundSliderThumbShape(
-                          enabledThumbRadius: 8,
-                        ),
-                      ),
-                      child: Slider(
-                        value: score.toDouble(),
-                        min: 1,
-                        max: 10,
-                        divisions: 9,
-                        onChanged: (v) => onChanged(pillar, v.round()),
-                      ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Struggling',
-                          style: ZenithTheme.dmSans(
-                            fontSize: 11,
-                            color: ZenithColors.textMuted,
-                          ),
-                        ),
-                        Text(
-                          'Thriving',
-                          style: ZenithTheme.dmSans(
-                            fontSize: 11,
-                            color: ZenithColors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 32),
+                TypewriterText(
+                  text: 'Rate your life right now.',
                 ),
-              ),
-            );
-          }),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: onNext,
-              child: const Text('Continue'),
+                const SizedBox(height: 8),
+                Text(
+                  'Be honest. This is where growth begins.',
+                  style: ZenithTheme.dmSans(
+                    fontSize: 14,
+                    color: ZenithColors.textLight,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                ...Assessment.pillars.map((pillar) {
+                  final score = scores[pillar] ?? 5;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: GlassCard(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                _pillarIcons[pillar],
+                                size: 20,
+                                color: ZenithColors.primary,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                _pillarLabels[pillar] ?? pillar,
+                                style: ZenithTheme.dmSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '$score',
+                                style: ZenithTheme.mono(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: ZenithColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          SliderTheme(
+                            data: SliderThemeData(
+                              activeTrackColor: ZenithColors.primary,
+                              inactiveTrackColor:
+                                  ZenithColors.primaryPale.withValues(alpha: 0.3),
+                              thumbColor: ZenithColors.primary,
+                              overlayColor:
+                                  ZenithColors.primary.withValues(alpha: 0.1),
+                              trackHeight: 4,
+                              thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 8,
+                              ),
+                            ),
+                            child: Slider(
+                              value: score.toDouble(),
+                              min: 1,
+                              max: 10,
+                              divisions: 9,
+                              onChanged: (v) => onChanged(pillar, v.round()),
+                            ),
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Struggling',
+                                style: ZenithTheme.dmSans(
+                                  fontSize: 11,
+                                  color: ZenithColors.textMuted,
+                                ),
+                              ),
+                              Text(
+                                'Thriving',
+                                style: ZenithTheme.dmSans(
+                                  fontSize: 11,
+                                  color: ZenithColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 16),
+              ],
             ),
           ),
-          const SizedBox(height: 32),
-        ],
-      ),
+        ),
+        _StickyButton(label: 'Continue', onPressed: onNext),
+      ],
     );
   }
 }
@@ -426,61 +435,100 @@ class _ProblemsPage extends StatelessWidget {
     required this.onNext,
   });
 
-  static const _options = [
-    'Procrastination',
-    'Lack of discipline',
-    'Poor fitness',
-    'Bad diet',
-    'Porn addiction',
-    'Social media addiction',
-    'Phone addiction',
-    'Low confidence',
-    'Poor sleep',
-    'Anxiety',
-    'Loneliness',
-    'Lack of focus',
-    'No routine',
-    'Financial stress',
-    'Career stagnation',
-    'Relationship issues',
-  ];
+  static const _categories = <String, List<({String label, String emoji})>>{
+    'Health & Fitness': [
+      (label: 'Poor fitness', emoji: '\u{1F3CB}'),
+      (label: 'Bad diet', emoji: '\u{1F354}'),
+      (label: 'Poor sleep', emoji: '\u{1F634}'),
+    ],
+    'Mental Health': [
+      (label: 'Anxiety', emoji: '\u{1F630}'),
+      (label: 'Low confidence', emoji: '\u{1F614}'),
+      (label: 'Lack of focus', emoji: '\u{1F9E0}'),
+    ],
+    'Habits & Discipline': [
+      (label: 'Procrastination', emoji: '\u{23F3}'),
+      (label: 'Lack of discipline', emoji: '\u{1F6AB}'),
+      (label: 'No routine', emoji: '\u{1F504}'),
+    ],
+    'Addictions': [
+      (label: 'Porn addiction', emoji: '\u{26D4}'),
+      (label: 'Social media addiction', emoji: '\u{1F4F1}'),
+      (label: 'Phone addiction', emoji: '\u{1F4F2}'),
+    ],
+    'Relationships & Social': [
+      (label: 'Loneliness', emoji: '\u{1F610}'),
+      (label: 'Relationship issues', emoji: '\u{1F494}'),
+    ],
+    'Career & Finances': [
+      (label: 'Financial stress', emoji: '\u{1F4B8}'),
+      (label: 'Career stagnation', emoji: '\u{1F4C9}'),
+    ],
+  };
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 32),
-          TypewriterText(
-            text: 'What are you struggling with?',
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Select all that apply. No judgement.',
-            style: ZenithTheme.dmSans(
-              fontSize: 14,
-              color: ZenithColors.textLight,
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 32),
+                TypewriterText(
+                  text: 'What are you struggling with?',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Select all that apply. No judgement.',
+                  style: ZenithTheme.dmSans(
+                    fontSize: 14,
+                    color: ZenithColors.textLight,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ..._categories.entries.map((category) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        category.key,
+                        style: ZenithTheme.dmSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1,
+                          color: ZenithColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...category.value.map((item) {
+                        final isSelected = selected.contains(item.label);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _SelectableTile(
+                            emoji: item.emoji,
+                            label: item.label,
+                            isSelected: isSelected,
+                            onTap: () => onToggle(item.label),
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                }),
+                const SizedBox(height: 16),
+              ],
             ),
           ),
-          const SizedBox(height: 28),
-          SelectableChipGrid(
-            options: _options,
-            selected: selected,
-            onToggle: onToggle,
-          ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: selected.isNotEmpty ? onNext : null,
-              child: const Text('Continue'),
-            ),
-          ),
-          const SizedBox(height: 32),
-        ],
-      ),
+        ),
+        _StickyButton(
+          label: 'Continue',
+          onPressed: selected.isNotEmpty ? onNext : null,
+        ),
+      ],
     );
   }
 }
@@ -498,61 +546,98 @@ class _GoalsPage extends StatelessWidget {
     required this.onNext,
   });
 
-  static const _options = [
-    'Build muscle',
-    'Lose weight',
-    'Read more',
-    'Meditate daily',
-    'Wake up early',
-    'Quit porn',
-    'Cold showers',
-    'Journal daily',
-    'Learn a skill',
-    'Build a business',
-    'Improve finances',
-    'Better relationships',
-    'Master discipline',
-    'Improve confidence',
-    'Code every day',
-    'Run a marathon',
-  ];
+  static const _categories = <String, List<({String label, String emoji})>>{
+    'Body & Fitness': [
+      (label: 'Build muscle', emoji: '\u{1F4AA}'),
+      (label: 'Lose weight', emoji: '\u{1F3C3}'),
+      (label: 'Run a marathon', emoji: '\u{1F3C5}'),
+      (label: 'Cold showers', emoji: '\u{1F9CA}'),
+    ],
+    'Mind & Wellbeing': [
+      (label: 'Meditate daily', emoji: '\u{1F9D8}'),
+      (label: 'Journal daily', emoji: '\u{1F4DD}'),
+      (label: 'Improve confidence', emoji: '\u{2728}'),
+      (label: 'Wake up early', emoji: '\u{1F305}'),
+    ],
+    'Knowledge & Skills': [
+      (label: 'Read more', emoji: '\u{1F4DA}'),
+      (label: 'Learn a skill', emoji: '\u{1F393}'),
+      (label: 'Code every day', emoji: '\u{1F4BB}'),
+    ],
+    'Relationships': [
+      (label: 'Better relationships', emoji: '\u{1F91D}'),
+      (label: 'Quit porn', emoji: '\u{1F6AB}'),
+    ],
+    'Career & Money': [
+      (label: 'Build a business', emoji: '\u{1F680}'),
+      (label: 'Improve finances', emoji: '\u{1F4B0}'),
+      (label: 'Master discipline', emoji: '\u{1F525}'),
+    ],
+  };
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 32),
-          TypewriterText(
-            text: 'What do you want to achieve?',
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Pick the goals that fire you up.',
-            style: ZenithTheme.dmSans(
-              fontSize: 14,
-              color: ZenithColors.textLight,
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 32),
+                TypewriterText(
+                  text: 'What do you want to achieve?',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Pick the goals that fire you up.',
+                  style: ZenithTheme.dmSans(
+                    fontSize: 14,
+                    color: ZenithColors.textLight,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ..._categories.entries.map((category) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        category.key,
+                        style: ZenithTheme.dmSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1,
+                          color: ZenithColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...category.value.map((item) {
+                        final isSelected = selected.contains(item.label);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _SelectableTile(
+                            emoji: item.emoji,
+                            label: item.label,
+                            isSelected: isSelected,
+                            onTap: () => onToggle(item.label),
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                }),
+                const SizedBox(height: 16),
+              ],
             ),
           ),
-          const SizedBox(height: 28),
-          SelectableChipGrid(
-            options: _options,
-            selected: selected,
-            onToggle: onToggle,
-          ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: selected.isNotEmpty ? onNext : null,
-              child: const Text('Continue'),
-            ),
-          ),
-          const SizedBox(height: 32),
-        ],
-      ),
+        ),
+        _StickyButton(
+          label: 'Continue',
+          onPressed: selected.isNotEmpty ? onNext : null,
+        ),
+      ],
     );
   }
 }
@@ -865,6 +950,96 @@ class _GeneratingPage extends StatelessWidget {
               ),
             ).animate().fadeIn(delay: 300.ms, duration: 600.ms),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Shared: Selectable Tile ──
+
+class _SelectableTile extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _SelectableTile({
+    required this.emoji,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? ZenithColors.primary.withValues(alpha: 0.12)
+              : Colors.white.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? ZenithColors.primary.withValues(alpha: 0.4)
+                : ZenithColors.cardBorder,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 22)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: ZenithTheme.dmSans(
+                  fontSize: 15,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected ? ZenithColors.primary : ZenithColors.text,
+                ),
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle_rounded,
+                  size: 22, color: ZenithColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Shared: Sticky bottom button ──
+
+class _StickyButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
+
+  const _StickyButton({required this.label, this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(32, 12, 32, 24),
+      decoration: BoxDecoration(
+        color: ZenithColors.bg,
+        border: Border(
+          top: BorderSide(color: ZenithColors.cardBorder),
+        ),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          child: Text(label),
         ),
       ),
     );

@@ -17,6 +17,7 @@ dependencies:
   cloud_functions: any
   firebase_messaging: any
   firebase_storage: any
+  firebase_ai: any
 
   # State Management
   provider: any
