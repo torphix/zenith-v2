@@ -207,6 +207,156 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Complete onboarding from an AI conversation transcript.
+  Future<void> completeConversationalOnboarding({
+    required String name,
+    required List<String> conversationHistory,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final uid = _firestore.uid;
+
+      // Extract structured profile from conversation
+      final extracted = await _ai.extractOnboardingProfile(
+        userName: name,
+        conversationHistory: conversationHistory,
+      );
+
+      final problems = List<String>.from(extracted['problems'] ?? []);
+      final goals = List<String>.from(extracted['goals'] ?? []);
+      final northStarVision = extracted['northStarVision'] as String?;
+      final energyPreference =
+          extracted['energyPreference'] as String? ?? 'balanced';
+      final commitmentLevel =
+          extracted['commitmentLevel'] as String? ?? '30';
+      final scoresRaw =
+          extracted['assessmentScores'] as Map<String, dynamic>? ?? {};
+      final assessmentScores = scoresRaw.map(
+        (k, v) => MapEntry(k, (v as num?)?.toInt() ?? 5),
+      );
+
+      _profile = UserProfile(
+        uid: uid,
+        name: name,
+        problems: problems,
+        goals: goals,
+        commitmentLevel: commitmentLevel,
+        energyPreference: energyPreference,
+        northStarVision: northStarVision,
+        onboardingComplete: true,
+        currentProgrammeNumber: 1,
+      );
+      await _firestore.saveProfile(_profile!);
+
+      // Save assessment
+      _assessment = Assessment(
+        id: _uuid.v4(),
+        scores: assessmentScores,
+      );
+      await _firestore.saveAssessment(_assessment!);
+
+      // Generate programme from conversation
+      final result = await _ai.generateProgrammeFromConversation(
+        userName: name,
+        conversationHistory: conversationHistory,
+        extractedProfile: extracted,
+      );
+
+      final programmeData = result['programme'] as Map<String, dynamic>;
+      final programmeId = _uuid.v4();
+
+      _programme = Programme(
+        id: programmeId,
+        name: programmeData['name'] ?? 'Your Programme',
+        theme: programmeData['theme'] ?? '',
+        description: programmeData['description'] ?? '',
+        focusPillars:
+            List<String>.from(programmeData['focusPillars'] ?? []),
+        coachingNote: programmeData['coachingNote'] ?? '',
+        programmeNumber: 1,
+      );
+      await _firestore.saveProgramme(_programme!);
+
+      // Save quests
+      final questsData = programmeData['quests'] as List? ?? [];
+      _quests = [];
+      for (final q in questsData) {
+        final qMap = q as Map<String, dynamic>;
+        final quest = Quest(
+          id: _uuid.v4(),
+          programmeId: programmeId,
+          title: qMap['title'] ?? '',
+          description: qMap['description'] ?? '',
+          primaryStat: qMap['primaryStat'] ?? 'discipline',
+          phases: (qMap['phases'] as List?)
+                  ?.map((p) =>
+                      QuestPhase.fromMap(p as Map<String, dynamic>))
+                  .toList() ??
+              [],
+        );
+        await _firestore.saveQuest(quest);
+        _quests.add(quest);
+      }
+
+      // Save habits
+      final habitsData = programmeData['habits'] as List? ?? [];
+      _habits = [];
+      for (final h in habitsData) {
+        final hMap = h as Map<String, dynamic>;
+        final habit = Habit(
+          id: _uuid.v4(),
+          programmeId: programmeId,
+          name: hMap['name'] ?? '',
+          type: HabitType.values.firstWhere(
+            (t) => t.name == hMap['type'],
+            orElse: () => HabitType.checkbox,
+          ),
+          primaryStat: hMap['primaryStat'] ?? 'discipline',
+          baseXP: hMap['baseXP'] ?? 10,
+          targetValue: hMap['targetValue'],
+          unit: hMap['unit'],
+        );
+        await _firestore.saveHabit(habit);
+        _habits.add(habit);
+      }
+
+      // Init stats
+      _stats = StatSnapshot(archetypeId: _archetype.id);
+      await _firestore.saveStats(_stats);
+
+      // Generate starter tasks
+      if (northStarVision != null && northStarVision.isNotEmpty) {
+        try {
+          final taskMaps = await _ai.generateStarterTasks(
+            northStarVision: northStarVision,
+            goals: goals,
+            problems: problems,
+          );
+          for (final t in taskMaps) {
+            final task = AdhocTask(
+              id: _uuid.v4(),
+              title: t['title'] as String? ?? '',
+              primaryStat: t['primaryStat'] as String?,
+              xp: (t['xp'] as num?)?.toInt() ?? 10,
+            );
+            await _firestore.saveAdhocTask(task);
+            _todayAdhocTasks.add(task);
+          }
+        } catch (e, st) {
+          Log.error(_tag, 'Failed to generate starter tasks', e, st);
+        }
+      }
+    } catch (e, st) {
+      Log.error(_tag, 'Failed to complete onboarding', e, st);
+      _error = Log.friendlyMessage(e);
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
   /// Resets onboarding so the user can redo it.
   Future<void> resetOnboarding() async {
     _isLoading = true;

@@ -135,6 +135,43 @@ class AIService {
     },
   );
 
+  /// Schema for extracting a full user profile from an onboarding conversation.
+  static final _onboardingProfileSchema = Schema.object(
+    properties: {
+      'assessmentScores': Schema.object(
+        properties: {
+          'body': Schema.integer(description: 'Body & health score 1-10'),
+          'mind': Schema.integer(description: 'Mental wellbeing score 1-10'),
+          'relationships': Schema.integer(description: 'Relationships score 1-10'),
+          'career': Schema.integer(description: 'Career & purpose score 1-10'),
+          'finances': Schema.integer(description: 'Finances score 1-10'),
+          'growth': Schema.integer(description: 'Personal growth score 1-10'),
+        },
+        description: 'Inferred life assessment scores from conversation',
+      ),
+      'problems': Schema.array(
+        items: Schema.string(),
+        description: 'Key problems/struggles mentioned',
+      ),
+      'goals': Schema.array(
+        items: Schema.string(),
+        description: 'Goals and aspirations mentioned',
+      ),
+      'northStarVision': Schema.string(
+        description: 'A synthesized vision statement of who they want to become',
+        nullable: true,
+      ),
+      'energyPreference': Schema.enumString(
+        enumValues: ['gentle', 'balanced', 'intense'],
+        description: 'Inferred coaching style preference from tone of conversation',
+      ),
+      'commitmentLevel': Schema.enumString(
+        enumValues: ['15', '30', '45', '60'],
+        description: 'Daily minutes they can commit, inferred or stated',
+      ),
+    },
+  );
+
   /// Schema for starter tasks from north star vision.
   static final _starterTasksSchema = Schema.object(
     properties: {
@@ -393,6 +430,155 @@ Don't be generic — tailor to their specific vision and goals.''';
     final parsed = jsonDecode(text) as Map<String, dynamic>;
     final tasks = parsed['tasks'] as List? ?? [];
     return tasks.cast<Map<String, dynamic>>();
+  }
+
+  // ── Onboarding Conversation ──
+
+  static const _onboardingSystemPrompt = '''You are Zenith, an AI life coach conducting an onboarding conversation.
+Your goal is to learn about the user so you can build them a personalised 30-day programme.
+
+You need to understand:
+1. Where they are in life right now (health, mental state, relationships, career, finances, growth)
+2. What they're struggling with
+3. What they want to achieve / who they want to become
+4. How much time they can commit daily
+
+Guidelines:
+- Ask ONE question at a time
+- Be warm, direct, and conversational — not clinical or preachy
+- Keep responses to 2-3 sentences max
+- Adapt your follow-ups based on what they share
+- If they mention something emotional, acknowledge it before moving on
+- Don't ask more than 6 questions total — you should have enough info by then
+- Never output JSON or structured data — just talk naturally''';
+
+  /// Get the next onboarding question based on conversation so far.
+  /// Pass the full history as alternating user/assistant Content objects.
+  Future<String> getOnboardingResponse({
+    required String userName,
+    required List<String> conversationHistory,
+  }) async {
+    final model = _getCoachModel();
+
+    final prompt = '''$_onboardingSystemPrompt
+
+The user's name is $userName.
+
+CONVERSATION SO FAR:
+${conversationHistory.isEmpty ? '(This is the start — greet them and ask your first question about their life.)' : conversationHistory.join('\n')}
+
+${conversationHistory.isEmpty ? '' : 'Continue the conversation. Ask your next question based on what you\'ve learned so far. If you have enough info after ~5-6 exchanges, say something like "I think I have a great picture of where you are and where you want to go. Let me build your programme." — this signals you are done.'}''';
+
+    final response = await model.generateContent([Content.text(prompt)]);
+    return response.text?.trim() ?? 'Tell me about yourself — where are you at in life right now?';
+  }
+
+  /// Same as above but the user sent a voice message.
+  Future<String> getOnboardingResponseFromAudio({
+    required File audioFile,
+    required String userName,
+    required List<String> conversationHistory,
+  }) async {
+    Log.debug(_tag, 'Processing onboarding voice...');
+    final model = _getCoachModel();
+    final bytes = await audioFile.readAsBytes();
+
+    final prompt = '''$_onboardingSystemPrompt
+
+The user's name is $userName.
+
+CONVERSATION SO FAR:
+${conversationHistory.isEmpty ? '(This is the start.)' : conversationHistory.join('\n')}
+
+The user just sent a voice message (audio above). Listen to it and continue the conversation.
+${conversationHistory.length >= 8 ? 'You have enough info now. Wrap up and say something like "I think I have a great picture of where you are and where you want to go. Let me build your programme."' : 'Ask your next question based on what you\'ve learned.'}''';
+
+    final response = await model.generateContent([
+      Content.multi([
+        InlineDataPart('audio/mp4', bytes),
+        TextPart(prompt),
+      ]),
+    ]);
+    return response.text?.trim() ?? 'Tell me more about that.';
+  }
+
+  /// Extract a structured profile from the full onboarding conversation.
+  Future<Map<String, dynamic>> extractOnboardingProfile({
+    required String userName,
+    required List<String> conversationHistory,
+  }) async {
+    Log.debug(_tag, 'Extracting profile from conversation...');
+    final model = FirebaseAI.googleAI().generativeModel(
+      model: 'gemini-2.5-flash',
+      generationConfig: GenerationConfig(
+        responseMimeType: 'application/json',
+        responseSchema: _onboardingProfileSchema,
+      ),
+    );
+
+    final prompt = '''Analyze this onboarding conversation and extract a structured user profile.
+
+USER NAME: $userName
+
+CONVERSATION:
+${conversationHistory.join('\n')}
+
+Based on what was discussed, infer:
+- assessmentScores: rate each life pillar 1-10 based on what they shared
+- problems: list their key struggles
+- goals: list their aspirations
+- northStarVision: synthesize a vision statement of who they want to become
+- energyPreference: infer from their communication style (gentle/balanced/intense)
+- commitmentLevel: if mentioned, otherwise default to "30"
+
+Be generous but honest with scores. If a topic wasn't discussed, give a neutral 5.''';
+
+    final response = await model.generateContent([Content.text(prompt)]);
+    final text = response.text;
+    if (text == null) throw Exception('Failed to extract profile');
+
+    return jsonDecode(text) as Map<String, dynamic>;
+  }
+
+  /// Generate programme directly from conversation transcript (single call).
+  Future<Map<String, dynamic>> generateProgrammeFromConversation({
+    required String userName,
+    required List<String> conversationHistory,
+    required Map<String, dynamic> extractedProfile,
+    int programmeNumber = 1,
+  }) async {
+    Log.debug(_tag, 'Generating programme from conversation...');
+    final model = _getProgrammeModel();
+
+    final prompt = '''You are Zenith, an AI life coach generating a 30-day programme.
+
+USER: $userName
+
+ONBOARDING CONVERSATION:
+${conversationHistory.join('\n')}
+
+EXTRACTED PROFILE:
+${_safeEncode(extractedProfile)}
+
+Programme number: $programmeNumber (${programmeNumber == 1 ? 'First programme - focus on foundations' : 'Returning user'})
+
+Based on the REAL conversation above, generate a deeply personalized programme.
+Reference specific things the user mentioned. Make it feel like you listened.
+
+Rules:
+- focusPillars: 1-2 values from: body, mind, relationships, career, finances, growth
+- Generate exactly 2 quests and 4-6 habits
+- primaryStat: body, mind, knowledge, heart, discipline, or craft
+- Each quest should have 2-4 phases
+- baseXP for habits should be 5-20
+- Make habits specific and actionable — tied to what they actually said''';
+
+    final response = await model.generateContent([Content.text(prompt)]);
+    final text = response.text;
+    if (text == null) throw Exception('Empty response from AI');
+
+    final parsed = jsonDecode(text) as Map<String, dynamic>;
+    return {'programme': parsed};
   }
 
   String _coachSystemPrompt({
