@@ -174,6 +174,30 @@ class AppProvider extends ChangeNotifier {
       // Init stats
       _stats = StatSnapshot(archetypeId: _archetype.id);
       await _firestore.saveStats(_stats);
+
+      // Generate starter tasks from north star vision
+      if (northStarVision != null && northStarVision.isNotEmpty) {
+        try {
+          final taskMaps = await _ai.generateStarterTasks(
+            northStarVision: northStarVision,
+            goals: goals,
+            problems: problems,
+          );
+          for (final t in taskMaps) {
+            final task = AdhocTask(
+              id: _uuid.v4(),
+              title: t['title'] as String? ?? '',
+              primaryStat: t['primaryStat'] as String?,
+              xp: (t['xp'] as num?)?.toInt() ?? 10,
+            );
+            await _firestore.saveAdhocTask(task);
+            _todayAdhocTasks.add(task);
+          }
+        } catch (e, st) {
+          // Non-critical — don't fail onboarding for this
+          Log.error(_tag, 'Failed to generate starter tasks', e, st);
+        }
+      }
     } catch (e, st) {
       Log.error(_tag, 'Failed to save onboarding profile', e, st);
       _error = Log.friendlyMessage(e);
@@ -292,40 +316,48 @@ class AppProvider extends ChangeNotifier {
   // ── Habit Completion ──
 
   Future<void> toggleHabit(Habit habit, {int? value}) async {
+    // Optimistic update
+    final existing = _todayCompletions
+        .where((c) => c.habitId == habit.id)
+        .firstOrNull;
+
+    Completion optimistic;
+    if (existing != null) {
+      optimistic = existing.copyWith(
+        completed: !existing.completed,
+        xpEarned: !existing.completed ? habit.baseXP : 0,
+      );
+      _todayCompletions = _todayCompletions
+          .map((c) => c.id == optimistic.id ? optimistic : c)
+          .toList();
+    } else {
+      optimistic = Completion(
+        id: _uuid.v4(),
+        habitId: habit.id,
+        programmeId: _programme?.id ?? '',
+        date: DateTime.now(),
+        completed: true,
+        value: value,
+        xpEarned: habit.baseXP,
+      );
+      _todayCompletions.add(optimistic);
+    }
+    notifyListeners();
+
+    // Persist in background
     try {
-      final existing = _todayCompletions
-          .where((c) => c.habitId == habit.id)
-          .firstOrNull;
-
-      if (existing != null) {
-        // Toggle off
-        final updated = existing.copyWith(
-          completed: !existing.completed,
-          xpEarned: !existing.completed ? habit.baseXP : 0,
-        );
-        await _firestore.saveCompletion(updated);
-        _todayCompletions = _todayCompletions
-            .map((c) => c.id == updated.id ? updated : c)
-            .toList();
-      } else {
-        // New completion
-        final completion = Completion(
-          id: _uuid.v4(),
-          habitId: habit.id,
-          programmeId: _programme?.id ?? '',
-          date: DateTime.now(),
-          completed: true,
-          value: value,
-          xpEarned: habit.baseXP,
-        );
-        await _firestore.saveCompletion(completion);
-        _todayCompletions.add(completion);
-      }
-
-      // Update stats
+      await _firestore.saveCompletion(optimistic);
       await _updateStats();
     } catch (e, st) {
+      // Rollback
       Log.error(_tag, 'Failed to toggle habit', e, st);
+      if (existing != null) {
+        _todayCompletions = _todayCompletions
+            .map((c) => c.id == existing.id ? existing : c)
+            .toList();
+      } else {
+        _todayCompletions.removeWhere((c) => c.id == optimistic.id);
+      }
       _error = Log.friendlyMessage(e);
     }
     notifyListeners();
@@ -600,17 +632,24 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> toggleAdhocTask(AdhocTask task) async {
-    try {
-      final updated = task.copyWith(completed: !task.completed);
-      await _firestore.saveAdhocTask(updated);
-      _todayAdhocTasks = _todayAdhocTasks
-          .map((t) => t.id == updated.id ? updated : t)
-          .toList();
-    } catch (e, st) {
-      Log.error(_tag, 'Failed to toggle task', e, st);
-      _error = Log.friendlyMessage(e);
-    }
+    // Optimistic update
+    final updated = task.copyWith(completed: !task.completed);
+    _todayAdhocTasks = _todayAdhocTasks
+        .map((t) => t.id == updated.id ? updated : t)
+        .toList();
     notifyListeners();
+
+    try {
+      await _firestore.saveAdhocTask(updated);
+    } catch (e, st) {
+      // Rollback
+      Log.error(_tag, 'Failed to toggle task', e, st);
+      _todayAdhocTasks = _todayAdhocTasks
+          .map((t) => t.id == task.id ? task : t)
+          .toList();
+      _error = Log.friendlyMessage(e);
+      notifyListeners();
+    }
   }
 
   // ── Refresh ──

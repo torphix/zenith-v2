@@ -1,9 +1,21 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 
 import 'logger.dart';
+
+/// Recursively converts a map to be JSON-safe (Timestamps → ISO strings).
+dynamic _jsonSafe(dynamic value) {
+  if (value is Timestamp) return value.toDate().toIso8601String();
+  if (value is DateTime) return value.toIso8601String();
+  if (value is Map) return value.map((k, v) => MapEntry(k, _jsonSafe(v)));
+  if (value is List) return value.map(_jsonSafe).toList();
+  return value;
+}
+
+String _safeEncode(dynamic value) => jsonEncode(_jsonSafe(value));
 
 const _tag = 'AIService';
 
@@ -119,6 +131,24 @@ class AIService {
           'body': Schema.integer(description: 'Score 1-10'),
           'discipline': Schema.integer(description: 'Score 1-10'),
         },
+      ),
+    },
+  );
+
+  /// Schema for starter tasks from north star vision.
+  static final _starterTasksSchema = Schema.object(
+    properties: {
+      'tasks': Schema.array(
+        items: Schema.object(
+          properties: {
+            'title': Schema.string(description: 'Short actionable task for today'),
+            'primaryStat': Schema.enumString(
+              enumValues: ['body', 'mind', 'knowledge', 'heart', 'discipline', 'craft'],
+            ),
+            'xp': Schema.integer(description: 'XP reward 5-15'),
+          },
+        ),
+        description: '3-5 starter tasks based on vision',
       ),
     },
   );
@@ -277,13 +307,13 @@ Rules:
         TextPart('''Listen to this voice note and extract actionable tasks the user mentions.
 
 USER CONTEXT:
-${jsonEncode(profile)}
+${_safeEncode(profile)}
 
 STATS:
-${jsonEncode(stats)}
+${_safeEncode(stats)}
 
 ACTIVE PROGRAMME:
-${activeProgramme != null ? jsonEncode(activeProgramme) : "null"}
+${activeProgramme != null ? _safeEncode(activeProgramme) : "null"}
 
 Rules:
 - Extract 1-5 tasks mentioned in the audio
@@ -310,8 +340,8 @@ Rules:
     final prompt = '''Write a life review based on this user's 30-day journey:
 
 Programme ID: $programmeId
-Stats: ${jsonEncode(stats)}
-User reflections: ${jsonEncode(reflections)}
+Stats: ${_safeEncode(stats)}
+User reflections: ${_safeEncode(reflections)}
 
 Rules:
 - Reference specific stats (streak, completion %, habits completed)
@@ -329,6 +359,42 @@ Rules:
     return jsonDecode(text) as Map<String, dynamic>;
   }
 
+  /// Generate starter tasks from the user's north star vision and goals.
+  Future<List<Map<String, dynamic>>> generateStarterTasks({
+    required String northStarVision,
+    required List<String> goals,
+    required List<String> problems,
+  }) async {
+    Log.debug(_tag, 'Generating starter tasks from vision...');
+    final model = FirebaseAI.googleAI().generativeModel(
+      model: 'gemini-2.5-flash',
+      generationConfig: GenerationConfig(
+        responseMimeType: 'application/json',
+        responseSchema: _starterTasksSchema,
+      ),
+    );
+
+    final prompt = '''The user just described their ideal self in one year:
+
+"$northStarVision"
+
+Their goals: ${goals.join(', ')}
+Their struggles: ${problems.join(', ')}
+
+Generate 3-5 small, actionable tasks they can do TODAY to start becoming that person.
+Tasks should be concrete and completable in under 30 minutes each.
+Examples: "Do 20 push-ups", "Read for 15 minutes", "Write 3 things you're grateful for".
+Don't be generic — tailor to their specific vision and goals.''';
+
+    final response = await model.generateContent([Content.text(prompt)]);
+    final text = response.text;
+    if (text == null) return [];
+
+    final parsed = jsonDecode(text) as Map<String, dynamic>;
+    final tasks = parsed['tasks'] as List? ?? [];
+    return tasks.cast<Map<String, dynamic>>();
+  }
+
   String _coachSystemPrompt({
     Map<String, dynamic>? profile,
     Map<String, dynamic>? stats,
@@ -340,13 +406,13 @@ Rules:
 No JSON. No preamble like "Here is my response".
 
 USER CONTEXT:
-${jsonEncode(profile)}
+${_safeEncode(profile)}
 
 STATS:
-${jsonEncode(stats)}
+${_safeEncode(stats)}
 
 ACTIVE PROGRAMME:
-${activeProgramme != null ? jsonEncode(activeProgramme) : "null"}
+${activeProgramme != null ? _safeEncode(activeProgramme) : "null"}
 
 CONVERSATION HISTORY:
 ${conversationHistory.take(12).join('\n')}

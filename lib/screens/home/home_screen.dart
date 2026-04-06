@@ -739,6 +739,11 @@ class _HabitCard extends StatelessWidget {
                     color: isCompleted
                         ? ZenithColors.textLight
                         : ZenithColors.text,
+                  ).copyWith(
+                    decoration: isCompleted
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
+                    decorationColor: ZenithColors.textMuted,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -835,6 +840,11 @@ class _AdhocTaskCard extends StatelessWidget {
                     color: task.completed
                         ? ZenithColors.textLight
                         : ZenithColors.text,
+                  ).copyWith(
+                    decoration: task.completed
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
+                    decorationColor: ZenithColors.textMuted,
                   ),
                 ),
                 const SizedBox(height: 2),
