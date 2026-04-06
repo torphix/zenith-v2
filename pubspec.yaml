@@ -40,6 +40,9 @@ dependencies:
   record: any
   audioplayers: any
 
+  # URL launcher
+  url_launcher: any
+
   # Utilities
   intl: any
   uuid: any

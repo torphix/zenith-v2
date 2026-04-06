@@ -2,11 +2,14 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/stat_snapshot.dart';
 import '../../providers/app_provider.dart';
 import '../../theme.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/snackbar_helper.dart';
+import '../onboarding/onboarding_flow.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -277,6 +280,38 @@ class ProfileScreen extends StatelessWidget {
                     ],
                   ),
 
+                  const SizedBox(height: 28),
+
+                  // ── Settings ──
+                  Text(
+                    'Settings',
+                    style: ZenithTheme.cormorant(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  _SettingsTile(
+                    icon: Icons.privacy_tip_outlined,
+                    label: 'Privacy Policy',
+                    onTap: () => _openUrl('https://zenith-app.com/privacy'),
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsTile(
+                    icon: Icons.description_outlined,
+                    label: 'Terms & Conditions',
+                    onTap: () => _openUrl('https://zenith-app.com/terms'),
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsTile(
+                    icon: Icons.refresh_rounded,
+                    label: 'Reset Onboarding',
+                    subtitle: 'Start the setup process again',
+                    onTap: () => _confirmResetOnboarding(context, app),
+                    danger: true,
+                  ),
+
                   const SizedBox(height: 100),
                 ],
               ),
@@ -284,6 +319,62 @@ class ProfileScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  void _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _confirmResetOnboarding(BuildContext context, AppProvider app) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Reset Onboarding?',
+          style: ZenithTheme.cormorant(
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'This will reset your setup and take you back to the onboarding flow. '
+          'Your existing data (stats, completions) will be kept, but you\'ll '
+          'get a new programme.',
+          style: ZenithTheme.dmSans(
+            fontSize: 14,
+            color: ZenithColors.textLight,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await app.resetOnboarding();
+              if (!context.mounted) return;
+              final error = app.consumeError();
+              if (error != null) {
+                showErrorSnackbar(context, error);
+              } else {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const OnboardingFlow()),
+                  (route) => false,
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: ZenithColors.danger),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -375,6 +466,62 @@ class _StatRadar extends StatelessWidget {
           );
         },
         radarShape: RadarShape.polygon,
+      ),
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final bool danger;
+
+  const _SettingsTile({
+    required this.icon,
+    required this.label,
+    this.subtitle,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? ZenithColors.danger : ZenithColors.text;
+    return GlassCard(
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: danger ? ZenithColors.danger : ZenithColors.primary),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: ZenithTheme.dmSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: color,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: ZenithTheme.dmSans(
+                      fontSize: 12,
+                      color: ZenithColors.textMuted,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded,
+              size: 20, color: ZenithColors.textMuted),
+        ],
       ),
     );
   }

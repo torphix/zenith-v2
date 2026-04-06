@@ -14,6 +14,7 @@ import '../../providers/app_provider.dart';
 import '../../services/storage_service.dart';
 import '../../theme.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/snackbar_helper.dart';
 
 import '../wraps/daily_wrap_screen.dart';
 
@@ -511,7 +512,12 @@ class _VoiceNoteFABState extends State<_VoiceNoteFAB> {
     if (path != null) {
       final file = File(path);
       if (await file.exists()) {
-        widget.app.processVoiceNote(file);
+        await widget.app.processVoiceNote(file);
+        if (!mounted) return;
+        final error = widget.app.consumeError();
+        if (error != null) {
+          showErrorSnackbar(context, error);
+        }
       }
     }
   }

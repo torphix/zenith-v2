@@ -10,6 +10,7 @@ import 'package:record/record.dart';
 import '../../providers/app_provider.dart';
 import '../../theme.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/snackbar_helper.dart';
 
 class CoachScreen extends StatefulWidget {
   const CoachScreen({super.key});
@@ -45,6 +46,13 @@ class _CoachScreenState extends State<CoachScreen> {
 
     final app = context.read<AppProvider>();
     await app.sendCoachMessage(text);
+
+    if (mounted) {
+      final error = app.consumeError();
+      if (error != null) {
+        showErrorSnackbar(context, error);
+      }
+    }
 
     setState(() {
       _isSending = false;
@@ -86,14 +94,15 @@ class _CoachScreenState extends State<CoachScreen> {
 
     final app = context.read<AppProvider>();
 
-    try {
-      // Upload, transcribe, then send to coach
-      final audioUrl = await app.uploadAndTranscribeForCoach(file);
-      if (audioUrl != null) {
-        await app.sendCoachMessage(audioUrl);
+    // Upload, transcribe, then send to coach
+    final transcript = await app.uploadAndTranscribeForCoach(file);
+    if (transcript != null) {
+      await app.sendCoachMessage(transcript);
+    } else {
+      if (mounted) {
+        final error = app.consumeError();
+        showErrorSnackbar(context, error ?? 'Failed to process voice message. Please try again.');
       }
-    } catch (_) {
-      // Fallback: just show error
     }
 
     setState(() {

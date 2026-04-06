@@ -18,9 +18,11 @@ import '../models/voice_note.dart';
 import '../models/wrap_data.dart';
 import '../services/firestore_service.dart';
 import '../services/functions_service.dart';
+import '../services/logger.dart';
 import '../services/storage_service.dart';
 
 const _uuid = Uuid();
+const _tag = 'AppProvider';
 
 class AppProvider extends ChangeNotifier {
   final _firestore = FirestoreService();
@@ -59,6 +61,13 @@ class AppProvider extends ChangeNotifier {
 
   bool get hasCompletedOnboarding => _profile?.onboardingComplete ?? false;
 
+  /// Consume the current error (returns it and clears state).
+  String? consumeError() {
+    final err = _error;
+    _error = null;
+    return err;
+  }
+
   double get todayCompletionRate {
     if (_habits.isEmpty) return 0;
     final completed =
@@ -92,8 +101,9 @@ class AppProvider extends ChangeNotifier {
       if (_profile != null && _profile!.onboardingComplete) {
         await _loadActiveData();
       }
-    } catch (e) {
-      _error = e.toString();
+    } catch (e, st) {
+      Log.error(_tag, 'Failed to initialise app', e, st);
+      _error = Log.friendlyMessage(e);
     }
 
     _isLoading = false;
@@ -164,8 +174,38 @@ class AppProvider extends ChangeNotifier {
       // Init stats
       _stats = StatSnapshot(archetypeId: _archetype.id);
       await _firestore.saveStats(_stats);
-    } catch (e) {
-      _error = e.toString();
+    } catch (e, st) {
+      Log.error(_tag, 'Failed to save onboarding profile', e, st);
+      _error = Log.friendlyMessage(e);
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Resets onboarding so the user can redo it.
+  Future<void> resetOnboarding() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final updatedProfile = _profile!.copyWith(onboardingComplete: false);
+      await _firestore.saveProfile(updatedProfile);
+      _profile = updatedProfile;
+
+      // Clear local state
+      _programme = null;
+      _quests = [];
+      _habits = [];
+      _todayCompletions = [];
+      _todayAdhocTasks = [];
+      _stats = StatSnapshot();
+      _archetype = Archetype.all.first;
+      _chatMessages = [];
+      _assessment = null;
+    } catch (e, st) {
+      Log.error(_tag, 'Failed to reset onboarding', e, st);
+      _error = Log.friendlyMessage(e);
     }
 
     _isLoading = false;
@@ -252,56 +292,66 @@ class AppProvider extends ChangeNotifier {
   // ── Habit Completion ──
 
   Future<void> toggleHabit(Habit habit, {int? value}) async {
-    final existing = _todayCompletions
-        .where((c) => c.habitId == habit.id)
-        .firstOrNull;
+    try {
+      final existing = _todayCompletions
+          .where((c) => c.habitId == habit.id)
+          .firstOrNull;
 
-    if (existing != null) {
-      // Toggle off
-      final updated = existing.copyWith(
-        completed: !existing.completed,
-        xpEarned: !existing.completed ? habit.baseXP : 0,
-      );
-      await _firestore.saveCompletion(updated);
-      _todayCompletions = _todayCompletions
-          .map((c) => c.id == updated.id ? updated : c)
-          .toList();
-    } else {
-      // New completion
-      final completion = Completion(
-        id: _uuid.v4(),
-        habitId: habit.id,
-        programmeId: _programme?.id ?? '',
-        date: DateTime.now(),
-        completed: true,
-        value: value,
-        xpEarned: habit.baseXP,
-      );
-      await _firestore.saveCompletion(completion);
-      _todayCompletions.add(completion);
+      if (existing != null) {
+        // Toggle off
+        final updated = existing.copyWith(
+          completed: !existing.completed,
+          xpEarned: !existing.completed ? habit.baseXP : 0,
+        );
+        await _firestore.saveCompletion(updated);
+        _todayCompletions = _todayCompletions
+            .map((c) => c.id == updated.id ? updated : c)
+            .toList();
+      } else {
+        // New completion
+        final completion = Completion(
+          id: _uuid.v4(),
+          habitId: habit.id,
+          programmeId: _programme?.id ?? '',
+          date: DateTime.now(),
+          completed: true,
+          value: value,
+          xpEarned: habit.baseXP,
+        );
+        await _firestore.saveCompletion(completion);
+        _todayCompletions.add(completion);
+      }
+
+      // Update stats
+      await _updateStats();
+    } catch (e, st) {
+      Log.error(_tag, 'Failed to toggle habit', e, st);
+      _error = Log.friendlyMessage(e);
     }
-
-    // Update stats
-    await _updateStats();
     notifyListeners();
   }
 
   Future<void> addCompletionPhoto(String habitId, File photo) async {
-    final existing = _todayCompletions
-        .where((c) => c.habitId == habitId)
-        .firstOrNull;
-    if (existing == null) return;
+    try {
+      final existing = _todayCompletions
+          .where((c) => c.habitId == habitId)
+          .firstOrNull;
+      if (existing == null) return;
 
-    final url = await _storage.uploadCompletionPhoto(
-      completionId: existing.id,
-      file: photo,
-    );
+      final url = await _storage.uploadCompletionPhoto(
+        completionId: existing.id,
+        file: photo,
+      );
 
-    final updated = existing.copyWith(photoUrl: url);
-    await _firestore.saveCompletion(updated);
-    _todayCompletions = _todayCompletions
-        .map((c) => c.id == updated.id ? updated : c)
-        .toList();
+      final updated = existing.copyWith(photoUrl: url);
+      await _firestore.saveCompletion(updated);
+      _todayCompletions = _todayCompletions
+          .map((c) => c.id == updated.id ? updated : c)
+          .toList();
+    } catch (e, st) {
+      Log.error(_tag, 'Failed to upload photo', e, st);
+      _error = Log.friendlyMessage(e);
+    }
     notifyListeners();
   }
 
@@ -433,7 +483,10 @@ class AppProvider extends ChangeNotifier {
       final transcript =
           await _functions.transcribeAudio(audioUrl: audioUrl);
       return transcript.isNotEmpty ? transcript : null;
-    } catch (_) {
+    } catch (e, st) {
+      Log.error(_tag, 'Failed to upload/transcribe for coach', e, st);
+      _error = Log.friendlyMessage(e);
+      notifyListeners();
       return null;
     }
   }
@@ -455,11 +508,13 @@ class AppProvider extends ChangeNotifier {
       );
 
       _chatMessages.add(CoachMessage(role: 'coach', content: reply));
-    } catch (e) {
+    } catch (e, st) {
+      Log.error(_tag, 'Coach message failed', e, st);
       _chatMessages.add(CoachMessage(
         role: 'coach',
         content: 'Sorry, I had trouble connecting. Let\'s try again.',
       ));
+      _error = Log.friendlyMessage(e);
     }
     notifyListeners();
   }
@@ -515,8 +570,9 @@ class AppProvider extends ChangeNotifier {
         await _firestore.saveAdhocTask(task);
         _todayAdhocTasks.add(task);
       }
-    } catch (e) {
-      _error = e.toString();
+    } catch (e, st) {
+      Log.error(_tag, 'Voice note processing failed', e, st);
+      _error = Log.friendlyMessage(e);
     }
 
     _isProcessingVoiceNote = false;
@@ -524,33 +580,48 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> addAdhocTask(String title) async {
-    final task = AdhocTask(
-      id: _uuid.v4(),
-      title: title,
-    );
-    await _firestore.saveAdhocTask(task);
-    _todayAdhocTasks.add(task);
+    try {
+      final task = AdhocTask(
+        id: _uuid.v4(),
+        title: title,
+      );
+      await _firestore.saveAdhocTask(task);
+      _todayAdhocTasks.add(task);
+    } catch (e, st) {
+      Log.error(_tag, 'Failed to add task', e, st);
+      _error = Log.friendlyMessage(e);
+    }
     notifyListeners();
   }
 
   Future<void> toggleAdhocTask(AdhocTask task) async {
-    final updated = task.copyWith(completed: !task.completed);
-    await _firestore.saveAdhocTask(updated);
-    _todayAdhocTasks = _todayAdhocTasks
-        .map((t) => t.id == updated.id ? updated : t)
-        .toList();
+    try {
+      final updated = task.copyWith(completed: !task.completed);
+      await _firestore.saveAdhocTask(updated);
+      _todayAdhocTasks = _todayAdhocTasks
+          .map((t) => t.id == updated.id ? updated : t)
+          .toList();
+    } catch (e, st) {
+      Log.error(_tag, 'Failed to toggle task', e, st);
+      _error = Log.friendlyMessage(e);
+    }
     notifyListeners();
   }
 
   // ── Refresh ──
 
   Future<void> refreshTodayData() async {
-    _todayAdhocTasks = await _firestore.getAdhocTasksForDate(DateTime.now());
-    if (_programme != null) {
-      _todayCompletions =
-          await _firestore.getCompletionsForDate(DateTime.now());
-      _stats = await _firestore.getStats();
-      _archetype = Archetype.calculate(_stats.stats);
+    try {
+      _todayAdhocTasks = await _firestore.getAdhocTasksForDate(DateTime.now());
+      if (_programme != null) {
+        _todayCompletions =
+            await _firestore.getCompletionsForDate(DateTime.now());
+        _stats = await _firestore.getStats();
+        _archetype = Archetype.calculate(_stats.stats);
+      }
+    } catch (e, st) {
+      Log.error(_tag, 'Failed to refresh data', e, st);
+      _error = Log.friendlyMessage(e);
     }
     notifyListeners();
   }
