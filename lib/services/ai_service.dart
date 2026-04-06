@@ -28,37 +28,63 @@ class AIService {
   /// Schema for programme generation structured output.
   static final _programmeSchema = Schema.object(
     properties: {
-      'name': Schema.string(description: 'Programme name, 2-4 words, inspiring'),
+      'name': Schema.string(
+        description: 'Programme name, 2-4 words, inspiring',
+      ),
       'theme': Schema.string(description: 'Brief theme, 3-6 words'),
       'description': Schema.string(
-          description: '2-3 sentences about what this programme will accomplish'),
+        description: '2-3 sentences about what this programme will accomplish',
+      ),
       'focusPillars': Schema.array(
         items: Schema.enumString(
-          enumValues: ['body', 'mind', 'relationships', 'career', 'finances', 'growth'],
+          enumValues: [
+            'body',
+            'mind',
+            'relationships',
+            'career',
+            'finances',
+            'growth',
+          ],
         ),
         description: '1-2 life pillars this programme focuses on',
       ),
       'coachingNote': Schema.string(
-          description: 'A warm, personalized message introducing this programme'),
+        description: 'A warm, personalized message introducing this programme',
+      ),
       'quests': Schema.array(
         items: Schema.object(
           properties: {
             'title': Schema.string(description: 'Quest title'),
-            'description': Schema.string(description: 'What this quest accomplishes'),
+            'description': Schema.string(
+              description: 'What this quest accomplishes',
+            ),
             'primaryStat': Schema.enumString(
-              enumValues: ['body', 'mind', 'knowledge', 'heart', 'discipline', 'craft'],
+              enumValues: [
+                'body',
+                'mind',
+                'knowledge',
+                'heart',
+                'discipline',
+                'craft',
+              ],
             ),
             'phases': Schema.array(
               items: Schema.object(
                 properties: {
                   'name': Schema.string(description: 'Phase name'),
-                  'description': Schema.string(description: 'What happens in this phase'),
+                  'description': Schema.string(
+                    description: 'What happens in this phase',
+                  ),
                   'dailyActions': Schema.array(
                     items: Schema.string(),
                     description: 'Daily actions for this phase',
                   ),
-                  'milestone': Schema.string(description: 'What marks completion'),
-                  'durationDays': Schema.integer(description: 'Duration in days'),
+                  'milestone': Schema.string(
+                    description: 'What marks completion',
+                  ),
+                  'durationDays': Schema.integer(
+                    description: 'Duration in days',
+                  ),
                 },
               ),
               description: 'Phases of this quest',
@@ -75,15 +101,24 @@ class AIService {
               enumValues: ['checkbox', 'abstinence', 'timed', 'counter'],
             ),
             'primaryStat': Schema.enumString(
-              enumValues: ['body', 'mind', 'knowledge', 'heart', 'discipline', 'craft'],
+              enumValues: [
+                'body',
+                'mind',
+                'knowledge',
+                'heart',
+                'discipline',
+                'craft',
+              ],
             ),
             'baseXP': Schema.integer(description: 'XP reward, typically 5-20'),
             'targetValue': Schema.integer(
-              description: 'Target for timed/counter habits, null for checkbox/abstinence',
+              description:
+                  'Target for timed/counter habits, null for checkbox/abstinence',
               nullable: true,
             ),
             'unit': Schema.string(
-              description: 'Unit for timed/counter habits (minutes, reps, pages), null otherwise',
+              description:
+                  'Unit for timed/counter habits (minutes, reps, pages), null otherwise',
               nullable: true,
             ),
           },
@@ -101,7 +136,14 @@ class AIService {
           properties: {
             'title': Schema.string(description: 'Short task description'),
             'primaryStat': Schema.enumString(
-              enumValues: ['body', 'mind', 'knowledge', 'heart', 'discipline', 'craft'],
+              enumValues: [
+                'body',
+                'mind',
+                'knowledge',
+                'heart',
+                'discipline',
+                'craft',
+              ],
               description: 'Which stat this task relates to',
             ),
             'xp': Schema.integer(description: 'XP reward 1-20 based on effort'),
@@ -116,7 +158,8 @@ class AIService {
   static final _lifeReviewSchema = Schema.object(
     properties: {
       'narrativeSummary': Schema.string(
-          description: '2-3 paragraph personal narrative of their journey'),
+        description: '2-3 paragraph personal narrative of their journey',
+      ),
       'keyWins': Schema.array(
         items: Schema.string(),
         description: '3 specific wins from their data',
@@ -142,7 +185,9 @@ class AIService {
         properties: {
           'body': Schema.integer(description: 'Body & health score 1-10'),
           'mind': Schema.integer(description: 'Mental wellbeing score 1-10'),
-          'relationships': Schema.integer(description: 'Relationships score 1-10'),
+          'relationships': Schema.integer(
+            description: 'Relationships score 1-10',
+          ),
           'career': Schema.integer(description: 'Career & purpose score 1-10'),
           'finances': Schema.integer(description: 'Finances score 1-10'),
           'growth': Schema.integer(description: 'Personal growth score 1-10'),
@@ -158,12 +203,14 @@ class AIService {
         description: 'Goals and aspirations mentioned',
       ),
       'northStarVision': Schema.string(
-        description: 'A synthesized vision statement of who they want to become',
+        description:
+            'A synthesized vision statement of who they want to become',
         nullable: true,
       ),
       'energyPreference': Schema.enumString(
         enumValues: ['gentle', 'balanced', 'intense'],
-        description: 'Inferred coaching style preference from tone of conversation',
+        description:
+            'Inferred coaching style preference from tone of conversation',
       ),
       'commitmentLevel': Schema.enumString(
         enumValues: ['15', '30', '45', '60'],
@@ -178,9 +225,18 @@ class AIService {
       'tasks': Schema.array(
         items: Schema.object(
           properties: {
-            'title': Schema.string(description: 'Short actionable task for today'),
+            'title': Schema.string(
+              description: 'Short actionable task for today',
+            ),
             'primaryStat': Schema.enumString(
-              enumValues: ['body', 'mind', 'knowledge', 'heart', 'discipline', 'craft'],
+              enumValues: [
+                'body',
+                'mind',
+                'knowledge',
+                'heart',
+                'discipline',
+                'craft',
+              ],
             ),
             'xp': Schema.integer(description: 'XP reward 5-15'),
           },
@@ -191,7 +247,7 @@ class AIService {
   );
 
   GenerativeModel _getProgrammeModel() {
-    return _programmeModel ??= FirebaseAI.googleAI().generativeModel(
+    return _programmeModel ??= FirebaseAI.vertexAI().generativeModel(
       model: 'gemini-2.5-flash',
       generationConfig: GenerationConfig(
         responseMimeType: 'application/json',
@@ -201,13 +257,13 @@ class AIService {
   }
 
   GenerativeModel _getCoachModel() {
-    return _coachModel ??= FirebaseAI.googleAI().generativeModel(
+    return _coachModel ??= FirebaseAI.vertexAI().generativeModel(
       model: 'gemini-2.5-flash',
     );
   }
 
   GenerativeModel _getVoiceNoteModel() {
-    return _voiceNoteModel ??= FirebaseAI.googleAI().generativeModel(
+    return _voiceNoteModel ??= FirebaseAI.vertexAI().generativeModel(
       model: 'gemini-2.5-flash',
       generationConfig: GenerationConfig(
         responseMimeType: 'application/json',
@@ -217,7 +273,7 @@ class AIService {
   }
 
   GenerativeModel _getLifeReviewModel() {
-    return _lifeReviewModel ??= FirebaseAI.googleAI().generativeModel(
+    return _lifeReviewModel ??= FirebaseAI.vertexAI().generativeModel(
       model: 'gemini-2.5-flash',
       generationConfig: GenerationConfig(
         responseMimeType: 'application/json',
@@ -236,10 +292,12 @@ class AIService {
     String energyPreference = 'balanced',
     int programmeNumber = 1,
   }) async {
-    final scoreLines =
-        assessmentScores.entries.map((e) => '  ${e.key}: ${e.value}').join('\n');
+    final scoreLines = assessmentScores.entries
+        .map((e) => '  ${e.key}: ${e.value}')
+        .join('\n');
 
-    final prompt = '''You are Zenith, an AI life coach generating a 30-day programme.
+    final prompt =
+        '''You are Zenith, an AI life coach generating a 30-day programme.
 
 USER DATA:
 - Life Assessment Scores (1-10):
@@ -289,13 +347,15 @@ Rules:
   }) async {
     final model = _getCoachModel();
     final response = await model.generateContent([
-      Content.text(_coachSystemPrompt(
-        profile: profile,
-        stats: stats,
-        activeProgramme: activeProgramme,
-        conversationHistory: conversationHistory,
-        userMessage: userMessage,
-      )),
+      Content.text(
+        _coachSystemPrompt(
+          profile: profile,
+          stats: stats,
+          activeProgramme: activeProgramme,
+          conversationHistory: conversationHistory,
+          userMessage: userMessage,
+        ),
+      ),
     ]);
     return response.text?.trim() ?? 'I\'m here for you. Let\'s talk.';
   }
@@ -315,13 +375,15 @@ Rules:
     final response = await model.generateContent([
       Content.multi([
         InlineDataPart('audio/mp4', bytes),
-        TextPart(_coachSystemPrompt(
-          profile: profile,
-          stats: stats,
-          activeProgramme: activeProgramme,
-          conversationHistory: conversationHistory,
-          userMessage: '[Voice message — listen to the audio above]',
-        )),
+        TextPart(
+          _coachSystemPrompt(
+            profile: profile,
+            stats: stats,
+            activeProgramme: activeProgramme,
+            conversationHistory: conversationHistory,
+            userMessage: '[Voice message — listen to the audio above]',
+          ),
+        ),
       ]),
     ]);
     return response.text?.trim() ?? 'I\'m here for you. Let\'s talk.';
@@ -341,7 +403,8 @@ Rules:
     final response = await model.generateContent([
       Content.multi([
         InlineDataPart('audio/mp4', bytes),
-        TextPart('''Listen to this voice note and extract actionable tasks the user mentions.
+        TextPart(
+          '''Listen to this voice note and extract actionable tasks the user mentions.
 
 USER CONTEXT:
 ${_safeEncode(profile)}
@@ -356,7 +419,8 @@ Rules:
 - Extract 1-5 tasks mentioned in the audio
 - Each task should be a short, clear description
 - Assign a primaryStat (body, mind, knowledge, heart, discipline, craft) based on the task
-- Assign XP between 1-20 based on effort level'''),
+- Assign XP between 1-20 based on effort level''',
+        ),
       ]),
     ]);
 
@@ -374,7 +438,8 @@ Rules:
     required Map<String, dynamic> stats,
     List<String> reflections = const [],
   }) async {
-    final prompt = '''Write a life review based on this user's 30-day journey:
+    final prompt =
+        '''Write a life review based on this user's 30-day journey:
 
 Programme ID: $programmeId
 Stats: ${_safeEncode(stats)}
@@ -403,7 +468,7 @@ Rules:
     required List<String> problems,
   }) async {
     Log.debug(_tag, 'Generating starter tasks from vision...');
-    final model = FirebaseAI.googleAI().generativeModel(
+    final model = FirebaseAI.vertexAI().generativeModel(
       model: 'gemini-2.5-flash',
       generationConfig: GenerationConfig(
         responseMimeType: 'application/json',
@@ -411,7 +476,8 @@ Rules:
       ),
     );
 
-    final prompt = '''The user just described their ideal self in one year:
+    final prompt =
+        '''The user just described their ideal self in one year:
 
 "$northStarVision"
 
@@ -434,7 +500,8 @@ Don't be generic — tailor to their specific vision and goals.''';
 
   // ── Onboarding Conversation ──
 
-  static const _onboardingSystemPrompt = '''You are Zenith, an AI life coach conducting an onboarding conversation.
+  static const _onboardingSystemPrompt =
+      '''You are Zenith, an AI life coach conducting an onboarding conversation.
 Your goal is to learn about the user so you can build them a personalised 30-day programme.
 
 You need to understand:
@@ -460,7 +527,8 @@ Guidelines:
   }) async {
     final model = _getCoachModel();
 
-    final prompt = '''$_onboardingSystemPrompt
+    final prompt =
+        '''$_onboardingSystemPrompt
 
 The user's name is $userName.
 
@@ -470,7 +538,8 @@ ${conversationHistory.isEmpty ? '(This is the start — greet them and ask your 
 ${conversationHistory.isEmpty ? '' : 'Continue the conversation. Ask your next question based on what you\'ve learned so far. If you have enough info after ~5-6 exchanges, say something like "I think I have a great picture of where you are and where you want to go. Let me build your programme." — this signals you are done.'}''';
 
     final response = await model.generateContent([Content.text(prompt)]);
-    return response.text?.trim() ?? 'Tell me about yourself — where are you at in life right now?';
+    return response.text?.trim() ??
+        'Tell me about yourself — where are you at in life right now?';
   }
 
   /// Same as above but the user sent a voice message.
@@ -483,7 +552,8 @@ ${conversationHistory.isEmpty ? '' : 'Continue the conversation. Ask your next q
     final model = _getCoachModel();
     final bytes = await audioFile.readAsBytes();
 
-    final prompt = '''$_onboardingSystemPrompt
+    final prompt =
+        '''$_onboardingSystemPrompt
 
 The user's name is $userName.
 
@@ -494,10 +564,7 @@ The user just sent a voice message (audio above). Listen to it and continue the 
 ${conversationHistory.length >= 8 ? 'You have enough info now. Wrap up and say something like "I think I have a great picture of where you are and where you want to go. Let me build your programme."' : 'Ask your next question based on what you\'ve learned.'}''';
 
     final response = await model.generateContent([
-      Content.multi([
-        InlineDataPart('audio/mp4', bytes),
-        TextPart(prompt),
-      ]),
+      Content.multi([InlineDataPart('audio/mp4', bytes), TextPart(prompt)]),
     ]);
     return response.text?.trim() ?? 'Tell me more about that.';
   }
@@ -508,7 +575,7 @@ ${conversationHistory.length >= 8 ? 'You have enough info now. Wrap up and say s
     required List<String> conversationHistory,
   }) async {
     Log.debug(_tag, 'Extracting profile from conversation...');
-    final model = FirebaseAI.googleAI().generativeModel(
+    final model = FirebaseAI.vertexAI().generativeModel(
       model: 'gemini-2.5-flash',
       generationConfig: GenerationConfig(
         responseMimeType: 'application/json',
@@ -516,7 +583,8 @@ ${conversationHistory.length >= 8 ? 'You have enough info now. Wrap up and say s
       ),
     );
 
-    final prompt = '''Analyze this onboarding conversation and extract a structured user profile.
+    final prompt =
+        '''Analyze this onboarding conversation and extract a structured user profile.
 
 USER NAME: $userName
 
@@ -550,7 +618,8 @@ Be generous but honest with scores. If a topic wasn't discussed, give a neutral 
     Log.debug(_tag, 'Generating programme from conversation...');
     final model = _getProgrammeModel();
 
-    final prompt = '''You are Zenith, an AI life coach generating a 30-day programme.
+    final prompt =
+        '''You are Zenith, an AI life coach generating a 30-day programme.
 
 USER: $userName
 
