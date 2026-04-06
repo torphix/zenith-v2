@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import '../widgets/error_listener.dart';
 import 'coach/coach_screen.dart';
 import 'home/home_screen.dart';
 import 'programme/programme_screen.dart';
@@ -25,7 +26,8 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ErrorListener(
+      child: Scaffold(
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
@@ -75,6 +77,7 @@ class _MainShellState extends State<MainShell> {
           ),
         ),
       ),
+    ),
     );
   }
 }
