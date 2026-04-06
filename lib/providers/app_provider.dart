@@ -471,19 +471,34 @@ class AppProvider extends ChangeNotifier {
 
   // ── Coach Chat ──
 
-  /// Transcribes a voice file on-device and returns the transcript
-  /// so it can be sent as a coach message.
-  Future<String?> uploadAndTranscribeForCoach(File audioFile) async {
+  /// Sends a voice message directly to the coach — audio goes straight
+  /// to Gemini, no transcription step.
+  Future<void> sendCoachVoiceMessage(File audioFile) async {
+    _chatMessages.add(CoachMessage(role: 'user', content: '[Voice message]'));
+    notifyListeners();
+
     try {
-      final transcript =
-          await _ai.transcribeAudio(audioFile: audioFile);
-      return transcript.isNotEmpty ? transcript : null;
+      final history =
+          _chatMessages.map((m) => '${m.role}: ${m.content}').toList();
+
+      final reply = await _ai.getCoachResponseFromAudio(
+        audioFile: audioFile,
+        profile: _profile?.toMap(),
+        stats: _stats.toMap(),
+        activeProgramme: _programme?.toMap(),
+        conversationHistory: history,
+      );
+
+      _chatMessages.add(CoachMessage(role: 'coach', content: reply));
     } catch (e, st) {
-      Log.error(_tag, 'Failed to upload/transcribe for coach', e, st);
+      Log.error(_tag, 'Coach voice message failed', e, st);
+      _chatMessages.add(CoachMessage(
+        role: 'coach',
+        content: 'Sorry, I had trouble connecting. Let\'s try again.',
+      ));
       _error = Log.friendlyMessage(e);
-      notifyListeners();
-      return null;
     }
+    notifyListeners();
   }
 
   Future<void> sendCoachMessage(String message) async {
@@ -516,8 +531,8 @@ class AppProvider extends ChangeNotifier {
 
   // ── Voice Notes & Ad-hoc Tasks ──
 
-  /// Records a voice note, uploads it, transcribes it, then uses AI to
-  /// extract ad-hoc tasks that get added to today's dashboard.
+  /// Sends voice audio directly to Gemini to extract ad-hoc tasks,
+  /// then uploads the audio for storage.
   Future<void> processVoiceNote(File audioFile) async {
     _isProcessingVoiceNote = true;
     notifyListeners();
@@ -525,32 +540,27 @@ class AppProvider extends ChangeNotifier {
     try {
       final noteId = _uuid.v4();
 
-      // Transcribe on-device
-      final transcript =
-          await _ai.transcribeAudio(audioFile: audioFile);
+      // Send audio straight to Gemini — extract tasks directly
+      final taskMaps = await _ai.processVoiceNoteAudio(
+        audioFile: audioFile,
+        profile: _profile?.toMap(),
+        stats: _stats.toMap(),
+        activeProgramme: _programme?.toMap(),
+      );
 
-      // Upload audio
+      // Upload audio for storage
       final audioUrl = await _storage.uploadVoiceNote(
         noteId: noteId,
         file: audioFile,
       );
 
-      // Save voice note
+      // Save voice note record
       final voiceNote = VoiceNote(
         id: noteId,
         programmeId: _programme?.id,
         audioUrl: audioUrl,
-        transcript: transcript,
       );
       await _firestore.saveVoiceNote(voiceNote);
-
-      // Extract tasks from transcript via AI
-      final taskMaps = await _ai.processVoiceNote(
-        transcript: transcript,
-        profile: _profile?.toMap(),
-        stats: _stats.toMap(),
-        activeProgramme: _programme?.toMap(),
-      );
 
       // Create ad-hoc tasks
       for (final t in taskMaps) {
