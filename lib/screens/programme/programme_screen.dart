@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/stat_snapshot.dart';
+import '../../models/habit.dart';
+import '../../models/programme.dart';
+import '../../models/quest.dart';
+import '../../models/sub_skill.dart';
 import '../../providers/app_provider.dart';
 import '../../theme.dart';
 import '../../widgets/glass_card.dart';
@@ -26,6 +29,9 @@ class ProgrammeScreen extends StatelessWidget {
             ),
           );
         }
+
+        SubSkill? findSubSkill(String id) =>
+            app.subSkills.where((s) => s.id == id).firstOrNull;
 
         return Scaffold(
           backgroundColor: ZenithColors.bg,
@@ -140,8 +146,7 @@ class ProgrammeScreen extends StatelessWidget {
                                     Row(
                                       children: [
                                         Text(
-                                          StatSnapshot.statIcons[
-                                                  quest.primaryStat] ??
+                                          findSubSkill(quest.subSkillId)?.icon ??
                                               '',
                                           style:
                                               const TextStyle(fontSize: 18),
@@ -238,8 +243,7 @@ class ProgrammeScreen extends StatelessWidget {
                                 child: Row(
                                   children: [
                                     Text(
-                                      StatSnapshot.statIcons[
-                                              habit.primaryStat] ??
+                                      findSubSkill(habit.subSkillId)?.icon ??
                                           '',
                                       style:
                                           const TextStyle(fontSize: 16),
@@ -319,12 +323,330 @@ class ProgrammeScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                // ── Past Programmes ──
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                    child: Text(
+                      'Past Programmes',
+                      style: ZenithTheme.cormorant(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: _PastProgrammes(app: app),
+                ),
                 const SliverToBoxAdapter(child: SizedBox(height: 100)),
               ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+// ── Past Programmes Section ──
+
+class _PastProgrammes extends StatefulWidget {
+  final AppProvider app;
+  const _PastProgrammes({required this.app});
+
+  @override
+  State<_PastProgrammes> createState() => _PastProgrammesState();
+}
+
+class _PastProgrammesState extends State<_PastProgrammes> {
+  List<Programme>? _pastProgrammes;
+  String? _expandedId;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final programmes = await widget.app.getPastProgrammes();
+    if (mounted) setState(() => _pastProgrammes = programmes);
+  }
+
+  String _formatDateRange(Programme p) {
+    final start = '${p.startDate.day}/${p.startDate.month}/${p.startDate.year}';
+    final end = '${p.endDate.day}/${p.endDate.month}/${p.endDate.year}';
+    return '$start — $end';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_pastProgrammes == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: ZenithColors.primary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_pastProgrammes!.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: GlassCard(
+          padding: const EdgeInsets.all(20),
+          child: Text(
+            'Complete your first programme to see it here.',
+            style: ZenithTheme.dmSans(
+              fontSize: 14,
+              color: ZenithColors.textLight,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        children: _pastProgrammes!.map((p) {
+          final isExpanded = _expandedId == p.id;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: GestureDetector(
+              onTap: () => setState(() =>
+                  _expandedId = isExpanded ? null : p.id),
+              child: GlassCard(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                p.name,
+                                style: ZenithTheme.dmSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _formatDateRange(p),
+                                style: ZenithTheme.dmSans(
+                                  fontSize: 12,
+                                  color: ZenithColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          isExpanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          color: ZenithColors.textMuted,
+                        ),
+                      ],
+                    ),
+                    if (p.focusPillars.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        children: p.focusPillars
+                            .map((pillar) => Chip(
+                                  label: Text(pillar),
+                                  visualDensity: VisualDensity.compact,
+                                ))
+                            .toList(),
+                      ),
+                    ],
+                    if (isExpanded) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        p.theme,
+                        style: ZenithTheme.dmSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: ZenithColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        p.description,
+                        style: ZenithTheme.dmSans(
+                          fontSize: 13,
+                          color: ZenithColors.textLight,
+                          height: 1.5,
+                        ),
+                      ),
+                      if (p.coachingNote.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          p.coachingNote,
+                          style: ZenithTheme.dmSans(
+                            fontSize: 13,
+                            color: ZenithColors.textLight,
+                            fontStyle: FontStyle.italic,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      _PastProgrammeDetails(
+                        app: widget.app,
+                        programmeId: p.id,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _PastProgrammeDetails extends StatefulWidget {
+  final AppProvider app;
+  final String programmeId;
+  const _PastProgrammeDetails({
+    required this.app,
+    required this.programmeId,
+  });
+
+  @override
+  State<_PastProgrammeDetails> createState() =>
+      _PastProgrammeDetailsState();
+}
+
+class _PastProgrammeDetailsState extends State<_PastProgrammeDetails> {
+  List<Habit>? _habits;
+  List<Quest>? _quests;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final habits =
+        await widget.app.getHabitsForProgramme(widget.programmeId);
+    final quests =
+        await widget.app.getQuestsForProgramme(widget.programmeId);
+    if (mounted) {
+      setState(() {
+        _habits = habits;
+        _quests = quests;
+      });
+    }
+  }
+
+  SubSkill? _findSubSkill(String id) =>
+      widget.app.subSkills.where((s) => s.id == id).firstOrNull;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_habits == null) {
+      return const SizedBox(
+        height: 30,
+        child: Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_quests != null && _quests!.isNotEmpty) ...[
+          Text(
+            'Quests',
+            style: ZenithTheme.dmSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: ZenithColors.textMuted,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ..._quests!.map((q) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Text(
+                      _findSubSkill(q.subSkillId)?.icon ?? '',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        q.title,
+                        style: ZenithTheme.dmSans(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+          const SizedBox(height: 10),
+        ],
+        if (_habits!.isNotEmpty) ...[
+          Text(
+            'Habits',
+            style: ZenithTheme.dmSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: ZenithColors.textMuted,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ..._habits!.map((h) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Text(
+                      _findSubSkill(h.subSkillId)?.icon ?? '',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        h.name,
+                        style: ZenithTheme.dmSans(fontSize: 13),
+                      ),
+                    ),
+                    Text(
+                      '+${h.baseXP} XP',
+                      style: ZenithTheme.mono(
+                        fontSize: 11,
+                        color: ZenithColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
+      ],
     );
   }
 }

@@ -3,12 +3,23 @@ import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 
 class StorageService {
   final _storage = FirebaseStorage.instance;
   final _picker = ImagePicker();
 
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
+
+  /// Returns the local directory for storing completion media.
+  Future<Directory> getMediaDirectory() async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final mediaDir = Directory('${appDir.path}/media');
+    if (!mediaDir.existsSync()) {
+      await mediaDir.create(recursive: true);
+    }
+    return mediaDir;
+  }
 
   Future<XFile?> pickPhoto() async {
     return _picker.pickImage(
@@ -25,6 +36,20 @@ class StorageService {
       maxWidth: 1080,
       maxHeight: 1080,
       imageQuality: 85,
+    );
+  }
+
+  Future<XFile?> pickVideo() async {
+    return _picker.pickVideo(
+      source: ImageSource.camera,
+      maxDuration: const Duration(seconds: 30),
+    );
+  }
+
+  Future<XFile?> pickVideoFromGallery() async {
+    return _picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(seconds: 30),
     );
   }
 

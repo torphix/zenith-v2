@@ -41,7 +41,7 @@ class Quest {
   final String programmeId;
   final String title;
   final String description;
-  final String primaryStat; // body, mind, knowledge, heart, discipline, craft
+  final String subSkillId; // references SubSkill.id
   final List<QuestPhase> phases;
   final int currentPhase;
   final DateTime createdAt;
@@ -51,7 +51,7 @@ class Quest {
     required this.programmeId,
     required this.title,
     required this.description,
-    required this.primaryStat,
+    required this.subSkillId,
     this.phases = const [],
     this.currentPhase = 0,
     DateTime? createdAt,
@@ -68,7 +68,7 @@ class Quest {
         'programmeId': programmeId,
         'title': title,
         'description': description,
-        'primaryStat': primaryStat,
+        'subSkillId': subSkillId,
         'phases': phases.map((p) => p.toMap()).toList(),
         'currentPhase': currentPhase,
         'createdAt': Timestamp.fromDate(createdAt),
@@ -79,7 +79,8 @@ class Quest {
         programmeId: map['programmeId'] ?? '',
         title: map['title'] ?? '',
         description: map['description'] ?? '',
-        primaryStat: map['primaryStat'] ?? 'discipline',
+        // Support both new 'subSkillId' and legacy 'primaryStat'
+        subSkillId: map['subSkillId'] ?? _migratePrimaryStat(map['primaryStat']),
         phases: (map['phases'] as List?)
                 ?.map((p) => QuestPhase.fromMap(p as Map<String, dynamic>))
                 .toList() ??
@@ -87,4 +88,16 @@ class Quest {
         currentPhase: map['currentPhase'] ?? 0,
         createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       );
+
+  static String _migratePrimaryStat(String? primaryStat) {
+    const mapping = {
+      'body': 'physical_training',
+      'mind': 'mindfulness',
+      'knowledge': 'learning',
+      'heart': 'connection',
+      'discipline': 'consistency',
+      'craft': 'creative_practice',
+    };
+    return mapping[primaryStat] ?? 'consistency';
+  }
 }

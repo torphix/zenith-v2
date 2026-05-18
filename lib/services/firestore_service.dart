@@ -3,11 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/adhoc_task.dart';
 import '../models/assessment.dart';
+import '../models/journal_entry.dart';
 import '../models/completion.dart';
 import '../models/habit.dart';
 import '../models/programme.dart';
 import '../models/quest.dart';
 import '../models/stat_snapshot.dart';
+import '../models/sub_skill.dart';
 import '../models/user_profile.dart';
 import '../models/voice_note.dart';
 import '../models/wrap_data.dart';
@@ -222,6 +224,34 @@ class FirestoreService {
     await _userDoc.collection('voiceNotes').doc(note.id).set(note.toMap());
   }
 
+  // ── Sub-Skills ──
+
+  Future<void> saveSubSkill(SubSkill skill) async {
+    await _userDoc.collection('subSkills').doc(skill.id).set(skill.toMap());
+  }
+
+  Future<void> saveSubSkills(List<SubSkill> skills) async {
+    final batch = _db.batch();
+    for (final skill in skills) {
+      batch.set(
+        _userDoc.collection('subSkills').doc(skill.id),
+        skill.toMap(),
+      );
+    }
+    await batch.commit();
+  }
+
+  Future<List<SubSkill>> getSubSkills() async {
+    final snap = await _userDoc.collection('subSkills').get();
+    return snap.docs.map((d) => SubSkill.fromMap(d.data())).toList();
+  }
+
+  Stream<List<SubSkill>> subSkillsStream() {
+    return _userDoc.collection('subSkills').snapshots().map(
+          (snap) => snap.docs.map((d) => SubSkill.fromMap(d.data())).toList(),
+        );
+  }
+
   // ── Ad-hoc Tasks ──
 
   Future<void> saveAdhocTask(AdhocTask task) async {
@@ -237,5 +267,35 @@ class FirestoreService {
         .where('date', isLessThan: Timestamp.fromDate(end))
         .get();
     return snap.docs.map((d) => AdhocTask.fromMap(d.data())).toList();
+  }
+
+  // ── Journal Entries ──
+
+  Future<void> saveJournalEntry(JournalEntry entry) async {
+    await _userDoc
+        .collection('journalEntries')
+        .doc(entry.id)
+        .set(entry.toMap());
+  }
+
+  Future<List<JournalEntry>> getJournalEntriesForDate(DateTime date) async {
+    final start = DateTime(date.year, date.month, date.day);
+    final end = start.add(const Duration(days: 1));
+    final snap = await _userDoc
+        .collection('journalEntries')
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('date', isLessThan: Timestamp.fromDate(end))
+        .get();
+    return snap.docs.map((d) => JournalEntry.fromMap(d.data())).toList();
+  }
+
+  // ── Programmes (all) ──
+
+  Future<List<Programme>> getAllProgrammes() async {
+    final snap = await _userDoc
+        .collection('programmes')
+        .orderBy('startDate', descending: true)
+        .get();
+    return snap.docs.map((d) => Programme.fromMap(d.data())).toList();
   }
 }

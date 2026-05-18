@@ -7,7 +7,7 @@ class Habit {
   final String programmeId;
   final String name;
   final HabitType type;
-  final String primaryStat; // body, mind, knowledge, heart, discipline, craft
+  final String subSkillId; // references SubSkill.id (e.g. 'combat', 'musical_ability')
   final int baseXP;
   final int? targetValue; // target minutes for timed, target count for counter
   final String? unit; // 'minutes', 'reps', 'pages', etc.
@@ -18,7 +18,7 @@ class Habit {
     required this.programmeId,
     required this.name,
     this.type = HabitType.checkbox,
-    required this.primaryStat,
+    required this.subSkillId,
     this.baseXP = 10,
     this.targetValue,
     this.unit,
@@ -43,7 +43,7 @@ class Habit {
         'programmeId': programmeId,
         'name': name,
         'type': type.name,
-        'primaryStat': primaryStat,
+        'subSkillId': subSkillId,
         'baseXP': baseXP,
         'targetValue': targetValue,
         'unit': unit,
@@ -58,10 +58,24 @@ class Habit {
           (t) => t.name == map['type'],
           orElse: () => HabitType.checkbox,
         ),
-        primaryStat: map['primaryStat'] ?? 'discipline',
+        // Support both new 'subSkillId' and legacy 'primaryStat' field
+        subSkillId: map['subSkillId'] ?? _migratePrimaryStat(map['primaryStat']),
         baseXP: map['baseXP'] ?? 10,
         targetValue: map['targetValue'],
         unit: map['unit'],
         createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       );
+
+  /// Map legacy primaryStat values to default sub-skill IDs.
+  static String _migratePrimaryStat(String? primaryStat) {
+    const mapping = {
+      'body': 'physical_training',
+      'mind': 'mindfulness',
+      'knowledge': 'learning',
+      'heart': 'connection',
+      'discipline': 'consistency',
+      'craft': 'creative_practice',
+    };
+    return mapping[primaryStat] ?? 'consistency';
+  }
 }

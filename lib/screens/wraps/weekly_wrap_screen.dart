@@ -2,10 +2,12 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
 
 import '../../models/archetype.dart';
-import '../../models/stat_snapshot.dart';
+import '../../models/sub_skill.dart';
 import '../../models/wrap_data.dart';
+import '../../providers/app_provider.dart';
 import '../../theme.dart';
 
 class WeeklyWrapScreen extends StatefulWidget {
@@ -26,16 +28,20 @@ class _WeeklyWrapScreenState extends State<WeeklyWrapScreen> {
   final _pageController = PageController();
   int _currentPage = 0;
 
+  SubSkill? _findSubSkill(List<SubSkill> subSkills, String id) =>
+      subSkills.where((s) => s.id == id).firstOrNull;
+
   @override
   Widget build(BuildContext context) {
     final wrap = widget.wrap;
+    final subSkills = context.read<AppProvider>().subSkills;
     final archetype = Archetype.all.firstWhere(
       (a) => a.id == wrap.archetypeId,
       orElse: () => Archetype.all.first,
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: const Color(0xFF1A2E1A),
       body: Stack(
         children: [
           PageView(
@@ -47,7 +53,7 @@ class _WeeklyWrapScreenState extends State<WeeklyWrapScreen> {
             children: [
               // Page 1: Weekly Overview
               _GradientPage(
-                colors: [const Color(0xFF16213E), const Color(0xFF0F3460)],
+                colors: [const Color(0xFF162E1A), const Color(0xFF0F3420)],
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -102,7 +108,7 @@ class _WeeklyWrapScreenState extends State<WeeklyWrapScreen> {
 
               // Page 2: Daily trend
               _GradientPage(
-                colors: [const Color(0xFF2D2B55), const Color(0xFF4B3F72)],
+                colors: [const Color(0xFF2B3D2B), const Color(0xFF3F5040)],
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -181,7 +187,7 @@ class _WeeklyWrapScreenState extends State<WeeklyWrapScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              StatSnapshot.statIcons[entry.key] ?? '',
+                              _findSubSkill(subSkills, entry.key)?.icon ?? '',
                               style: const TextStyle(fontSize: 24),
                             ),
                             const SizedBox(width: 12),
@@ -189,7 +195,7 @@ class _WeeklyWrapScreenState extends State<WeeklyWrapScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  StatSnapshot.statLabels[entry.key] ??
+                                  _findSubSkill(subSkills, entry.key)?.name ??
                                       entry.key,
                                   style: ZenithTheme.dmSans(
                                     fontSize: 16,

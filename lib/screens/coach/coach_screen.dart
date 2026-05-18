@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,12 +9,16 @@ import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 
 import '../../providers/app_provider.dart';
+import '../../services/ai_service.dart';
 import '../../theme.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/snackbar_helper.dart';
 
 class CoachScreen extends StatefulWidget {
-  const CoachScreen({super.key});
+  /// Optional prompt to send automatically when the screen opens.
+  final String? initialPrompt;
+
+  const CoachScreen({super.key, this.initialPrompt});
 
   @override
   State<CoachScreen> createState() => _CoachScreenState();
@@ -22,10 +27,27 @@ class CoachScreen extends StatefulWidget {
 class _CoachScreenState extends State<CoachScreen> {
   final _controller = TextEditingController();
   final _recorder = AudioRecorder();
-  bool _isSending = false;
+  final _ai = AIService();
+
+  bool _isStreaming = false;
   bool _isRecording = false;
   bool _showTextInput = false;
   int _currentMessageIndex = 0;
+  String _streamingReply = '';
+  bool _didSendInitialPrompt = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialPrompt != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_didSendInitialPrompt && mounted) {
+          _didSendInitialPrompt = true;
+          _streamTextReply(widget.initialPrompt!);
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -36,29 +58,53 @@ class _CoachScreenState extends State<CoachScreen> {
 
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _isSending) return;
+    if (text.isEmpty || _isStreaming) return;
 
     _controller.clear();
-    setState(() {
-      _isSending = true;
-      _showTextInput = false;
-    });
+    setState(() => _showTextInput = false);
 
+    await _streamTextReply(text);
+  }
+
+  Future<void> _streamTextReply(String userMessage) async {
     final app = context.read<AppProvider>();
-    await app.sendCoachMessage(text);
-
-    if (mounted) {
-      final error = app.consumeError();
-      if (error != null) {
-        showErrorSnackbar(context, error);
-      }
-    }
+    app.addUserMessage(userMessage);
 
     setState(() {
-      _isSending = false;
-      // Jump to latest coach reply
-      _currentMessageIndex = app.chatMessages.length - 1;
+      _isStreaming = true;
+      _streamingReply = '';
+      _currentMessageIndex = app.chatMessages.length;
     });
+
+    try {
+      await for (final chunk in _ai.streamCoachResponse(
+        userMessage: userMessage,
+        profile: app.profile?.toMap(),
+        stats: app.stats.toMap(),
+        activeProgramme: app.programme?.toMap(),
+        conversationHistory: app.chatMessages
+            .map((m) => '${m.role}: ${m.content}')
+            .toList(),
+      )) {
+        if (!mounted) return;
+        setState(() => _streamingReply += chunk);
+      }
+
+      if (!mounted) return;
+      app.addCoachMessage(_streamingReply);
+      setState(() {
+        _isStreaming = false;
+        _streamingReply = '';
+        _currentMessageIndex = app.chatMessages.length - 1;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isStreaming = false;
+        _streamingReply = '';
+      });
+      showErrorSnackbar(context, 'Failed to get response. Try again.');
+    }
   }
 
   Future<void> _startRecording() async {
@@ -89,24 +135,46 @@ class _CoachScreenState extends State<CoachScreen> {
     if (path == null) return;
     final file = File(path);
     if (!await file.exists()) return;
-
-    setState(() => _isSending = true);
+    if (!mounted) return;
 
     final app = context.read<AppProvider>();
-
-    // Send audio straight to Gemini coach
-    await app.sendCoachVoiceMessage(file);
-    if (mounted) {
-      final error = app.consumeError();
-      if (error != null) {
-        showErrorSnackbar(context, error);
-      }
-    }
+    app.addUserMessage('[Voice message]');
 
     setState(() {
-      _isSending = false;
-      _currentMessageIndex = app.chatMessages.length - 1;
+      _isStreaming = true;
+      _streamingReply = '';
+      _currentMessageIndex = app.chatMessages.length;
     });
+
+    try {
+      await for (final chunk in _ai.streamCoachResponseFromAudio(
+        audioFile: file,
+        profile: app.profile?.toMap(),
+        stats: app.stats.toMap(),
+        activeProgramme: app.programme?.toMap(),
+        conversationHistory: app.chatMessages
+            .map((m) => '${m.role}: ${m.content}')
+            .toList(),
+      )) {
+        if (!mounted) return;
+        setState(() => _streamingReply += chunk);
+      }
+
+      if (!mounted) return;
+      app.addCoachMessage(_streamingReply);
+      setState(() {
+        _isStreaming = false;
+        _streamingReply = '';
+        _currentMessageIndex = app.chatMessages.length - 1;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isStreaming = false;
+        _streamingReply = '';
+      });
+      showErrorSnackbar(context, 'Failed to process voice. Try again.');
+    }
   }
 
   void _goToNext(int total) {
@@ -140,6 +208,25 @@ class _CoachScreenState extends State<CoachScreen> {
                   padding: const EdgeInsets.all(24),
                   child: Row(
                     children: [
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: ZenithColors.primary.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: ZenithColors.text,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
@@ -185,33 +272,13 @@ class _CoachScreenState extends State<CoachScreen> {
                   ),
                 ),
 
-                // ── Single message display ──
+                // ── Message display ──
                 Expanded(
-                  child: hasMessages
-                      ? GestureDetector(
-                          onHorizontalDragEnd: (details) {
-                            if (details.primaryVelocity == null) return;
-                            if (details.primaryVelocity! < -100) {
-                              _goToNext(messages.length);
-                            } else if (details.primaryVelocity! > 100) {
-                              _goToPrev();
-                            }
-                          },
-                          child: _isSending &&
-                                  _currentMessageIndex == messages.length - 1
-                              ? _ThinkingView()
-                              : _SingleMessageView(
-                                  key: ValueKey(_currentMessageIndex),
-                                  message: messages[_currentMessageIndex],
-                                ),
-                        )
-                      : _isSending
-                          ? _ThinkingView()
-                          : _EmptyCoach(),
+                  child: _buildMessageArea(messages, hasMessages),
                 ),
 
                 // ── Navigation dots ──
-                if (hasMessages && messages.length > 1)
+                if (hasMessages && messages.length > 1 && !_isStreaming)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
@@ -229,7 +296,6 @@ class _CoachScreenState extends State<CoachScreen> {
                         ...List.generate(
                           messages.length.clamp(0, 7),
                           (i) {
-                            // Show dots around current position
                             final startIdx = messages.length <= 7
                                 ? 0
                                 : (_currentMessageIndex - 3)
@@ -268,7 +334,7 @@ class _CoachScreenState extends State<CoachScreen> {
                     ),
                   ),
 
-                // ── Voice-first input area ──
+                // ── Input area ──
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                   decoration: BoxDecoration(
@@ -292,11 +358,86 @@ class _CoachScreenState extends State<CoachScreen> {
     );
   }
 
+  Widget _buildMessageArea(List<dynamic> messages, bool hasMessages) {
+    // Streaming response with text appearing
+    if (_isStreaming && _streamingReply.isNotEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Coach',
+                style: ZenithTheme.dmSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  color: ZenithColors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 16),
+              GlassCard(
+                padding: const EdgeInsets.all(24),
+                color: Colors.white.withValues(alpha: 0.7),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(text: _streamingReply),
+                      TextSpan(
+                        text: ' ▊',
+                        style: ZenithTheme.dmSans(
+                          fontSize: 16,
+                          color:
+                              ZenithColors.primary.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
+                  style: ZenithTheme.dmSans(
+                    fontSize: 16,
+                    color: ZenithColors.text,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Streaming but no content yet — thinking
+    if (_isStreaming) {
+      return _ThinkingView();
+    }
+
+    // Existing messages
+    if (hasMessages) {
+      return GestureDetector(
+        onHorizontalDragEnd: (details) {
+          if (details.primaryVelocity == null) return;
+          if (details.primaryVelocity! < -100) {
+            _goToNext(messages.length);
+          } else if (details.primaryVelocity! > 100) {
+            _goToPrev();
+          }
+        },
+        child: _SingleMessageView(
+          key: ValueKey(_currentMessageIndex),
+          message: messages[_currentMessageIndex],
+        ),
+      );
+    }
+
+    return _EmptyCoach();
+  }
+
   Widget _buildVoiceInput() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Type instead button
         GestureDetector(
           onTap: () => setState(() => _showTextInput = true),
           child: Container(
@@ -315,9 +456,8 @@ class _CoachScreenState extends State<CoachScreen> {
         ),
         const SizedBox(width: 20),
 
-        // Voice record button (large, center)
         GestureDetector(
-          onTap: _isSending
+          onTap: _isStreaming
               ? null
               : (_isRecording ? _stopAndSend : _startRecording),
           child: AnimatedContainer(
@@ -325,7 +465,7 @@ class _CoachScreenState extends State<CoachScreen> {
             width: _isRecording ? 72 : 60,
             height: _isRecording ? 72 : 60,
             decoration: BoxDecoration(
-              color: _isSending
+              color: _isStreaming
                   ? ZenithColors.textMuted
                   : _isRecording
                       ? ZenithColors.danger
@@ -343,7 +483,7 @@ class _CoachScreenState extends State<CoachScreen> {
               ],
             ),
             child: Icon(
-              _isSending
+              _isStreaming
                   ? Icons.hourglass_top_rounded
                   : _isRecording
                       ? Icons.stop_rounded
@@ -355,7 +495,6 @@ class _CoachScreenState extends State<CoachScreen> {
         ),
         const SizedBox(width: 20),
 
-        // Spacer to keep mic centered
         const SizedBox(width: 44),
       ],
     );
@@ -364,7 +503,6 @@ class _CoachScreenState extends State<CoachScreen> {
   Widget _buildTextInput() {
     return Row(
       children: [
-        // Back to voice button
         GestureDetector(
           onTap: () => setState(() => _showTextInput = false),
           child: Container(
@@ -421,7 +559,7 @@ class _CoachScreenState extends State<CoachScreen> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              _isSending
+              _isStreaming
                   ? Icons.hourglass_top_rounded
                   : Icons.arrow_upward_rounded,
               color: Colors.white,
@@ -434,7 +572,7 @@ class _CoachScreenState extends State<CoachScreen> {
   }
 }
 
-// ── Single message view (one at a time) ──
+// ── Single message view ──
 
 class _SingleMessageView extends StatelessWidget {
   final dynamic message;
@@ -451,7 +589,6 @@ class _SingleMessageView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Role label
             Text(
               isUser ? 'You said' : 'Coach',
               style: ZenithTheme.dmSans(
@@ -462,8 +599,6 @@ class _SingleMessageView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Message content
             GlassCard(
               padding: const EdgeInsets.all(24),
               color: isUser
@@ -486,7 +621,7 @@ class _SingleMessageView extends StatelessWidget {
   }
 }
 
-// ── Thinking/loading view ──
+// ── Thinking view ──
 
 class _ThinkingView extends StatelessWidget {
   @override

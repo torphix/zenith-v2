@@ -53,19 +53,22 @@ class Programme {
         'createdAt': Timestamp.fromDate(createdAt),
       };
 
-  factory Programme.fromMap(Map<String, dynamic> map) => Programme(
-        id: map['id'] ?? '',
-        name: map['name'] ?? '',
-        theme: map['theme'] ?? '',
-        description: map['description'] ?? '',
-        focusPillars: List<String>.from(map['focusPillars'] ?? []),
-        coachingNote: map['coachingNote'] ?? '',
-        programmeNumber: map['programmeNumber'] ?? 1,
-        startDate: (map['startDate'] as Timestamp?)?.toDate(),
-        endDate: (map['endDate'] as Timestamp?)?.toDate(),
-        isActive: map['isActive'] ?? true,
-        createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
-      );
+  factory Programme.fromMap(Map<String, dynamic> map) {
+    final createdAt = (map['createdAt'] as Timestamp?)?.toDate();
+    return Programme(
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
+      theme: map['theme'] ?? '',
+      description: map['description'] ?? '',
+      focusPillars: List<String>.from(map['focusPillars'] ?? []),
+      coachingNote: map['coachingNote'] ?? '',
+      programmeNumber: map['programmeNumber'] ?? 1,
+      startDate: (map['startDate'] as Timestamp?)?.toDate() ?? createdAt,
+      endDate: (map['endDate'] as Timestamp?)?.toDate(),
+      isActive: map['isActive'] ?? true,
+      createdAt: createdAt,
+    );
+  }
 
   Programme copyWith({bool? isActive}) => Programme(
         id: id,

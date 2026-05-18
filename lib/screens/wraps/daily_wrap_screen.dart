@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
 
 import '../../models/archetype.dart';
-import '../../models/stat_snapshot.dart';
+import '../../models/sub_skill.dart';
 import '../../models/wrap_data.dart';
+import '../../providers/app_provider.dart';
 import '../../theme.dart';
 
 
@@ -20,9 +22,13 @@ class _DailyWrapScreenState extends State<DailyWrapScreen> {
   final _pageController = PageController();
   int _currentPage = 0;
 
+  SubSkill? _findSubSkill(List<SubSkill> subSkills, String id) =>
+      subSkills.where((s) => s.id == id).firstOrNull;
+
   @override
   Widget build(BuildContext context) {
     final wrap = widget.wrap;
+    final subSkills = context.read<AppProvider>().subSkills;
     final archetype =
         Archetype.all.firstWhere((a) => a.id == wrap.archetypeId,
             orElse: () => Archetype.all.first);
@@ -94,8 +100,8 @@ class _DailyWrapScreenState extends State<DailyWrapScreen> {
               // Page 2: XP Gained
               _WrapPage(
                 gradient: [
-                  const Color(0xFF2D2B55),
-                  const Color(0xFF4B3F72),
+                  const Color(0xFF2B3D2B),
+                  const Color(0xFF3F5040),
                 ],
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -126,12 +132,12 @@ class _DailyWrapScreenState extends State<DailyWrapScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              StatSnapshot.statIcons[entry.key] ?? '',
+                              _findSubSkill(subSkills, entry.key)?.icon ?? '',
                               style: const TextStyle(fontSize: 20),
                             ),
                             const SizedBox(width: 10),
                             Text(
-                              StatSnapshot.statLabels[entry.key] ?? entry.key,
+                              _findSubSkill(subSkills, entry.key)?.name ?? entry.key,
                               style: ZenithTheme.dmSans(
                                 fontSize: 16,
                                 color: Colors.white.withValues(alpha: 0.8),
@@ -222,7 +228,7 @@ class _DailyWrapScreenState extends State<DailyWrapScreen> {
               // Page 4: Highlights
               _WrapPage(
                 gradient: [
-                  const Color(0xFF1A1A2E),
+                  const Color(0xFF1A2E1A),
                   ZenithColors.primaryDeep,
                 ],
                 child: Column(

@@ -5,60 +5,60 @@ import 'package:google_fonts/google_fonts.dart';
 // ── Colour Palette ──
 
 class ZenithColors {
-  // Primary — rich deep pastel purple
-  static const primary = Color(0xFF7B68AE);
-  static const primaryLight = Color(0xFFA594C9);
-  static const primaryPale = Color(0xFFD4CCE3);
-  static const primaryDeep = Color(0xFF5E4D8C);
+  // Primary — refined sage
+  static const primary = Color(0xFF7A8F7A);
+  static const primaryLight = Color(0xFF9DAE9D);
+  static const primaryPale = Color(0xFFC5D1C5);
+  static const primaryDeep = Color(0xFF3D4F3D);
 
-  // Pastels
-  static const lavender = Color(0xFFB8A9C9);
-  static const blush = Color(0xFFD4A9B8);
-  static const peach = Color(0xFFDEB8A6);
-  static const sky = Color(0xFFA9BCD4);
-  static const mint = Color(0xFFA9C9B8);
+  // Pastels — harmonised with sage
+  static const lavender = Color(0xFFA6A0B6);
+  static const blush = Color(0xFFC8A89C);
+  static const peach = Color(0xFFD0B8A4);
+  static const sky = Color(0xFF96ADB8);
+  static const mint = Color(0xFF94B8A6);
 
-  // Warm accents
-  static const gold = Color(0xFFC4A882);
-  static const lightGold = Color(0xFFD4C5A9);
-  static const warmGray = Color(0xFFB8A99A);
-  static const amber = Color(0xFFD4A24E);
+  // Warm accents — antique gold & champagne
+  static const gold = Color(0xFFC9A84C);
+  static const lightGold = Color(0xFFE2D5A8);
+  static const warmGray = Color(0xFFA89E90);
+  static const amber = Color(0xFFD4A040);
 
-  // Backgrounds — warm cream with a hint of lilac
-  static const bg = Color(0xFFF6F4F8);
-  static const bgMid = Color(0xFFF0ECF3);
-  static const bgDark = Color(0xFFEAE5F0);
+  // Backgrounds — sage-kissed ivory
+  static const bg = Color(0xFFF8F9F6);
+  static const bgMid = Color(0xFFEFF1EC);
+  static const bgDark = Color(0xFFE3E7DE);
   // Keep old names as aliases so nothing breaks during migration
   static const cream = bg;
   static const creamMid = bgMid;
   static const creamDark = bgDark;
 
   // Surfaces
-  static const card = Color(0xFFFFFEFF);
-  static const cardBorder = Color(0x0A000000); // 4 % black
+  static const card = Color(0xFFFFFFFF);
+  static const cardBorder = Color(0x12000000); // 7 % black
 
-  // Text
-  static const text = Color(0xFF2A2A32);
-  static const textLight = Color(0xFF8E8E9A);
-  static const textMuted = Color(0xFFAAAAAF);
-  static const label = Color(0xFFA09AAE);
+  // Text — sage-tinted
+  static const text = Color(0xFF1A1F1A);
+  static const textLight = Color(0xFF6E7A6E);
+  static const textMuted = Color(0xFF9AA69A);
+  static const label = Color(0xFF8A948A);
 
   // Navigation
-  static const navInactive = Color(0xFFC4BFD0);
+  static const navInactive = Color(0xFFB8C0B8);
 
   // XP / progress
-  static const xp = Color(0xFF7C6FA0);
+  static const xp = Color(0xFF7A8F7A);
 
   // Danger
-  static const danger = Color(0xFFC27070);
+  static const danger = Color(0xFFC25048);
 
-  // Garden (keep greens for the living garden widget)
-  static const sage = Color(0xFF8B9E8B);
-  static const greenLight = Color(0xFFA0AE90);
-  static const greenMid = Color(0xFFA8B8A0);
-  static const greenPale = Color(0xFFC8D4C0);
-  static const bark = Color(0xFF8B7B6B);
-  static const leafDark = Color(0xFF7A8B6B);
+  // Garden — deeper botanical tones
+  static const sage = Color(0xFF7A8F7A);
+  static const greenLight = Color(0xFF8BA27E);
+  static const greenMid = Color(0xFF92A88C);
+  static const greenPale = Color(0xFFB4C6AE);
+  static const bark = Color(0xFF6E5F4E);
+  static const leafDark = Color(0xFF5E7652);
 }
 
 // ── Typography helpers ──
@@ -87,7 +87,7 @@ class ZenithTheme {
     FontStyle fontStyle = FontStyle.normal,
     double? height,
     double? letterSpacing,
-  }) => GoogleFonts.dmSans(
+  }) => GoogleFonts.outfit(
     fontSize: fontSize,
     fontWeight: fontWeight,
     color: color,
@@ -113,7 +113,7 @@ class ZenithTheme {
     Color? borderColor,
     Color? fill,
   }) => BoxDecoration(
-    color: fill ?? Colors.white.withValues(alpha: 0.45),
+    color: fill ?? Colors.white.withValues(alpha: 0.55),
     borderRadius: BorderRadius.circular(borderRadius),
     border: Border.all(color: borderColor ?? ZenithColors.cardBorder),
   );
@@ -183,11 +183,11 @@ class ZenithTheme {
           horizontal: 20,
           vertical: 16,
         ),
-        hintStyle: GoogleFonts.dmSans(
+        hintStyle: GoogleFonts.outfit(
           fontSize: 15,
           color: ZenithColors.textMuted,
         ),
-        labelStyle: GoogleFonts.dmSans(
+        labelStyle: GoogleFonts.outfit(
           fontSize: 14,
           color: ZenithColors.textLight,
         ),
@@ -201,11 +201,12 @@ class ZenithTheme {
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
-          textStyle: GoogleFonts.dmSans(
+          textStyle: GoogleFonts.outfit(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
           ),
         ),
       ),
@@ -214,7 +215,7 @@ class ZenithTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: ZenithColors.primary,
-          textStyle: GoogleFonts.dmSans(
+          textStyle: GoogleFonts.outfit(
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -225,14 +226,15 @@ class ZenithTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: ZenithColors.primary,
-          side: BorderSide(color: ZenithColors.primary.withValues(alpha: 0.3)),
+          side: BorderSide(color: ZenithColors.primary.withValues(alpha: 0.25)),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
-          textStyle: GoogleFonts.dmSans(
+          textStyle: GoogleFonts.outfit(
             fontSize: 14,
             fontWeight: FontWeight.w500,
+            letterSpacing: 0.5,
           ),
         ),
       ),
@@ -265,7 +267,7 @@ class ZenithTheme {
           fontWeight: FontWeight.w600,
           color: ZenithColors.text,
         ),
-        contentTextStyle: GoogleFonts.dmSans(
+        contentTextStyle: GoogleFonts.outfit(
           fontSize: 14,
           color: ZenithColors.textLight,
           height: 1.55,
@@ -275,7 +277,7 @@ class ZenithTheme {
       // ── Chips ──
       chipTheme: ChipThemeData(
         backgroundColor: ZenithColors.primaryPale.withValues(alpha: 0.3),
-        labelStyle: GoogleFonts.dmSans(
+        labelStyle: GoogleFonts.outfit(
           fontSize: 12,
           fontWeight: FontWeight.w500,
           color: ZenithColors.primary,
@@ -301,7 +303,7 @@ class ZenithTheme {
       // ── Snack bar ──
       snackBarTheme: SnackBarThemeData(
         backgroundColor: ZenithColors.text,
-        contentTextStyle: GoogleFonts.dmSans(fontSize: 14, color: Colors.white),
+        contentTextStyle: GoogleFonts.outfit(fontSize: 14, color: Colors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         behavior: SnackBarBehavior.floating,
       ),
@@ -355,51 +357,51 @@ class ZenithTheme {
         fontWeight: FontWeight.w500,
         color: ZenithColors.text,
       ),
-      titleLarge: GoogleFonts.dmSans(
+      titleLarge: GoogleFonts.outfit(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: ZenithColors.text,
       ),
-      titleMedium: GoogleFonts.dmSans(
+      titleMedium: GoogleFonts.outfit(
         fontSize: 16,
         fontWeight: FontWeight.w500,
         color: ZenithColors.text,
       ),
-      titleSmall: GoogleFonts.dmSans(
+      titleSmall: GoogleFonts.outfit(
         fontSize: 14,
         fontWeight: FontWeight.w500,
         color: ZenithColors.text,
       ),
-      bodyLarge: GoogleFonts.dmSans(
+      bodyLarge: GoogleFonts.outfit(
         fontSize: 16,
         fontWeight: FontWeight.w400,
         color: ZenithColors.text,
         height: 1.6,
       ),
-      bodyMedium: GoogleFonts.dmSans(
+      bodyMedium: GoogleFonts.outfit(
         fontSize: 14,
         fontWeight: FontWeight.w400,
         color: ZenithColors.text,
         height: 1.5,
       ),
-      bodySmall: GoogleFonts.dmSans(
+      bodySmall: GoogleFonts.outfit(
         fontSize: 12,
         fontWeight: FontWeight.w400,
         color: ZenithColors.textLight,
       ),
-      labelLarge: GoogleFonts.dmSans(
+      labelLarge: GoogleFonts.outfit(
         fontSize: 14,
         fontWeight: FontWeight.w600,
         color: ZenithColors.text,
         letterSpacing: 0.5,
       ),
-      labelMedium: GoogleFonts.dmSans(
+      labelMedium: GoogleFonts.outfit(
         fontSize: 12,
         fontWeight: FontWeight.w500,
         color: ZenithColors.textLight,
         letterSpacing: 0.5,
       ),
-      labelSmall: GoogleFonts.dmSans(
+      labelSmall: GoogleFonts.outfit(
         fontSize: 11,
         fontWeight: FontWeight.w600,
         color: ZenithColors.label,

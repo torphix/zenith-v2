@@ -22,6 +22,7 @@ const _tag = 'AIService';
 class AIService {
   GenerativeModel? _programmeModel;
   GenerativeModel? _coachModel;
+  GenerativeModel? _onboardingChatModel;
   GenerativeModel? _voiceNoteModel;
   GenerativeModel? _lifeReviewModel;
 
@@ -58,15 +59,20 @@ class AIService {
             'description': Schema.string(
               description: 'What this quest accomplishes',
             ),
-            'primaryStat': Schema.enumString(
+            'subSkillName': Schema.string(
+              description:
+                  'Primary sub-skill this quest develops, e.g. "Combat", "Endurance"',
+            ),
+            'subSkillDomain': Schema.enumString(
               enumValues: [
-                'body',
-                'mind',
-                'knowledge',
-                'heart',
+                'physical',
+                'creative',
+                'intellectual',
+                'social',
                 'discipline',
-                'craft',
+                'spiritual',
               ],
+              description: 'Broad domain for this quest',
             ),
             'phases': Schema.array(
               items: Schema.object(
@@ -100,15 +106,24 @@ class AIService {
             'type': Schema.enumString(
               enumValues: ['checkbox', 'abstinence', 'timed', 'counter'],
             ),
-            'primaryStat': Schema.enumString(
+            'subSkillName': Schema.string(
+              description:
+                  'Specific skill this habit develops, e.g. "Combat", "Musical Ability", "Culinary Arts", "Public Speaking". Be specific and interesting — not generic like "Body" or "Mind".',
+            ),
+            'subSkillDomain': Schema.enumString(
               enumValues: [
-                'body',
-                'mind',
-                'knowledge',
-                'heart',
+                'physical',
+                'creative',
+                'intellectual',
+                'social',
                 'discipline',
-                'craft',
+                'spiritual',
               ],
+              description: 'Which broad domain this sub-skill belongs to',
+            ),
+            'subSkillIcon': Schema.string(
+              description:
+                  'A single emoji that represents this specific sub-skill, e.g. 🥋 for combat, 🎹 for piano',
             ),
             'baseXP': Schema.integer(description: 'XP reward, typically 5-20'),
             'targetValue': Schema.integer(
@@ -135,16 +150,23 @@ class AIService {
         items: Schema.object(
           properties: {
             'title': Schema.string(description: 'Short task description'),
-            'primaryStat': Schema.enumString(
+            'subSkillName': Schema.string(
+              description:
+                  'Specific skill this task develops, e.g. "Combat", "Cooking", "Running". Be specific.',
+            ),
+            'subSkillDomain': Schema.enumString(
               enumValues: [
-                'body',
-                'mind',
-                'knowledge',
-                'heart',
+                'physical',
+                'creative',
+                'intellectual',
+                'social',
                 'discipline',
-                'craft',
+                'spiritual',
               ],
-              description: 'Which stat this task relates to',
+              description: 'Broad domain this skill belongs to',
+            ),
+            'subSkillIcon': Schema.string(
+              description: 'Single emoji for this skill, e.g. 🏃 for running',
             ),
             'xp': Schema.integer(description: 'XP reward 1-20 based on effort'),
           },
@@ -228,15 +250,22 @@ class AIService {
             'title': Schema.string(
               description: 'Short actionable task for today',
             ),
-            'primaryStat': Schema.enumString(
+            'subSkillName': Schema.string(
+              description:
+                  'Specific skill this task develops, e.g. "Running", "Sketching", "Cooking"',
+            ),
+            'subSkillDomain': Schema.enumString(
               enumValues: [
-                'body',
-                'mind',
-                'knowledge',
-                'heart',
+                'physical',
+                'creative',
+                'intellectual',
+                'social',
                 'discipline',
-                'craft',
+                'spiritual',
               ],
+            ),
+            'subSkillIcon': Schema.string(
+              description: 'Single emoji for this skill',
             ),
             'xp': Schema.integer(description: 'XP reward 5-15'),
           },
@@ -259,6 +288,17 @@ class AIService {
   GenerativeModel _getCoachModel() {
     return _coachModel ??= FirebaseAI.vertexAI().generativeModel(
       model: 'gemini-2.5-flash',
+    );
+  }
+
+  /// Onboarding chat model — thinking disabled so streaming chunks arrive
+  /// immediately instead of waiting for the thinking phase to complete.
+  GenerativeModel _getOnboardingChatModel() {
+    return _onboardingChatModel ??= FirebaseAI.vertexAI().generativeModel(
+      model: 'gemini-2.5-flash',
+      generationConfig: GenerationConfig(
+        thinkingConfig: ThinkingConfig.withThinkingBudget(0),
+      ),
     );
   }
 
@@ -321,10 +361,63 @@ Rules:
 - focusPillars: 1-2 values from: body, mind, relationships, career, finances, growth
 - Generate exactly 2 quests and 4-6 habits
 - Ensure habits align with their problems and goals
-- primaryStat for quests and habits must be: body, mind, knowledge, heart, discipline, or craft
+- Each habit and quest gets a SPECIFIC sub-skill name (e.g. "Combat" not "Body", "Musical Ability" not "Craft")
+- Sub-skill domains: physical, creative, intellectual, social, discipline, spiritual
+- Pick a fitting emoji icon for each sub-skill
 - Each quest should have 2-4 phases
 - baseXP for habits should be 5-20
-- Make habits specific and actionable''';
+- Habits must be ACTIONS the user actually DOES, not passive observations
+- BAD habits: "Check bank balance", "Write down your weight", "Review your goals" — these are useless busywork
+- GOOD habits: "Do 30 push-ups", "Read for 20 minutes", "No social media before noon", "Cook one healthy meal"
+- Use the correct habit type: checkbox (do/don't do), abstinence (NOT doing something), timed (minutes spent), counter (reps/count)
+- Every habit must pass the test: "Will doing this daily for 30 days actually change this person's life?"
+
+PROVEN HABIT LIBRARY — select 4-6 from this list that best match the user's goals. Adapt specifics to their situation. Only create habits NOT in this library if their goals truly demand it.
+
+MORNING ROUTINE:
+- "Morning cold shower (2 min)" [checkbox, discipline, 15 XP]
+- "10-minute morning meditation" [timed, targetValue: 10, spiritual, 10 XP]
+- "Write 3 morning gratitudes" [checkbox, spiritual, 8 XP]
+- "No phone for first 30 minutes" [abstinence, discipline, 10 XP]
+
+PHYSICAL:
+- "Do 30 push-ups" [counter, targetValue: 30, unit: reps, physical, 12 XP]
+- "Run for 20 minutes" [timed, targetValue: 20, physical, 15 XP]
+- "Walk 10,000 steps" [counter, targetValue: 10000, unit: steps, physical, 10 XP]
+- "Full body stretch (10 min)" [timed, targetValue: 10, physical, 8 XP]
+
+MIND & LEARNING:
+- "Read for 20 minutes" [timed, targetValue: 20, intellectual, 10 XP]
+- "Journal for 10 minutes" [timed, targetValue: 10, intellectual, 10 XP]
+- "Learn one new thing (write it down)" [checkbox, intellectual, 8 XP]
+- "Deep work session (45 min)" [timed, targetValue: 45, intellectual, 18 XP]
+
+NUTRITION & HEALTH:
+- "Cook one healthy meal from scratch" [checkbox, discipline, 12 XP]
+- "No junk food" [abstinence, discipline, 10 XP]
+- "Drink 8 glasses of water" [counter, targetValue: 8, unit: glasses, physical, 5 XP]
+- "No alcohol" [abstinence, discipline, 12 XP]
+
+DIGITAL WELLNESS & DISCIPLINE:
+- "No social media after 9pm" [abstinence, discipline, 10 XP]
+- "Screen time under 2 hours (non-work)" [abstinence, discipline, 12 XP]
+- "No porn" [abstinence, discipline, 15 XP]
+
+SLEEP:
+- "In bed by 10:30pm" [checkbox, discipline, 10 XP]
+- "No screens 30 min before bed" [abstinence, discipline, 8 XP]
+
+CREATIVE:
+- "Practise [skill] for 20 minutes" [timed, targetValue: 20, creative, 12 XP]
+- "Write 500 words" [counter, targetValue: 500, unit: words, creative, 15 XP]
+
+SOCIAL:
+- "Reach out to one person" [checkbox, social, 8 XP]
+- "Have one meaningful conversation (no phones)" [checkbox, social, 10 XP]
+
+FINANCIAL:
+- "Work on side project for 30 min" [timed, targetValue: 30, discipline, 15 XP]
+- "Send 3 cold emails / outreach" [counter, targetValue: 3, unit: emails, discipline, 12 XP]''';
 
     Log.debug(_tag, 'Generating programme...');
     final model = _getProgrammeModel();
@@ -418,7 +511,9 @@ ${activeProgramme != null ? _safeEncode(activeProgramme) : "null"}
 Rules:
 - Extract 1-5 tasks mentioned in the audio
 - Each task should be a short, clear description
-- Assign a primaryStat (body, mind, knowledge, heart, discipline, craft) based on the task
+- Assign a specific sub-skill name (e.g. "Combat", "Running", "Cooking", "Public Speaking") — be specific, not generic
+- Assign a broad domain (physical, creative, intellectual, social, discipline, spiritual)
+- Pick a fitting emoji icon for the sub-skill
 - Assign XP between 1-20 based on effort level''',
         ),
       ]),
@@ -498,26 +593,189 @@ Don't be generic — tailor to their specific vision and goals.''';
     return tasks.cast<Map<String, dynamic>>();
   }
 
+  // ── Streaming Methods ──
+
+  /// Stream an onboarding response chunk-by-chunk.
+  /// Uses a model with thinking disabled for instant streaming.
+  Stream<String> streamOnboardingResponse({
+    required String userName,
+    required List<String> conversationHistory,
+  }) async* {
+    final model = _getOnboardingChatModel();
+
+    // Separate system context (questionnaire data) from actual conversation
+    final systemContext = conversationHistory
+        .where((m) => m.startsWith('system_context:'))
+        .join('\n');
+    final chatHistory = conversationHistory
+        .where((m) => !m.startsWith('system_context:'))
+        .toList();
+
+    final prompt =
+        '''$_onboardingSystemPrompt
+
+WHAT WE ALREADY KNOW (from questionnaire — DO NOT re-ask):
+$systemContext
+
+The user's name is $userName.
+
+CONVERSATION SO FAR:
+${chatHistory.isEmpty ? '(This is the start. Briefly acknowledge what you know from the questionnaire (1 sentence), then ask: "So — what do you want to achieve in the next 30 days? Dream big, be honest, say whatever comes to mind.")' : chatHistory.join('\n')}
+
+${chatHistory.isNotEmpty ? 'Continue the conversation about their dream outcome. React to what they JUST said. When you have a clear goal, starting point, and picture of day 30, end your response with [READY_TO_BUILD].' : ''}''';
+
+    final stream = model.generateContentStream([Content.text(prompt)]);
+    await for (final chunk in stream) {
+      final text = chunk.text;
+      if (text != null && text.isNotEmpty) {
+        yield text;
+      }
+    }
+  }
+
+  /// Stream a coach response chunk-by-chunk using Gemini's streaming API.
+  Stream<String> streamCoachResponse({
+    required String userMessage,
+    Map<String, dynamic>? profile,
+    Map<String, dynamic>? stats,
+    Map<String, dynamic>? activeProgramme,
+    List<String> conversationHistory = const [],
+  }) async* {
+    final model = _getCoachModel();
+    final prompt = _coachSystemPrompt(
+      profile: profile,
+      stats: stats,
+      activeProgramme: activeProgramme,
+      conversationHistory: conversationHistory,
+      userMessage: userMessage,
+    );
+
+    final stream = model.generateContentStream([Content.text(prompt)]);
+    await for (final chunk in stream) {
+      final text = chunk.text;
+      if (text != null && text.isNotEmpty) {
+        yield text;
+      }
+    }
+  }
+
+  /// Stream an onboarding response from a voice message (audio sent to Gemini).
+  /// Uses a model with thinking disabled for instant streaming.
+  Stream<String> streamOnboardingResponseFromAudio({
+    required File audioFile,
+    required String userName,
+    required List<String> conversationHistory,
+  }) async* {
+    Log.debug(_tag, 'Streaming onboarding voice response...');
+    final model = _getOnboardingChatModel();
+    final bytes = await audioFile.readAsBytes();
+
+    final systemContext = conversationHistory
+        .where((m) => m.startsWith('system_context:'))
+        .join('\n');
+    final chatHistory = conversationHistory
+        .where((m) => !m.startsWith('system_context:'))
+        .toList();
+
+    final prompt =
+        '''$_onboardingSystemPrompt
+
+WHAT WE ALREADY KNOW (from questionnaire — DO NOT re-ask):
+$systemContext
+
+The user's name is $userName.
+
+CONVERSATION SO FAR:
+${chatHistory.isEmpty ? '(This is the start.)' : chatHistory.join('\n')}
+
+The user just sent a voice message (audio above). Listen carefully and continue the conversation about their dream outcome. React to what they said. When you have a clear goal, starting point, and picture of day 30, end your response with [READY_TO_BUILD].''';
+
+    final stream = model.generateContentStream([
+      Content.multi([InlineDataPart('audio/mp4', bytes), TextPart(prompt)]),
+    ]);
+    await for (final chunk in stream) {
+      final text = chunk.text;
+      if (text != null && text.isNotEmpty) {
+        yield text;
+      }
+    }
+  }
+
+  /// Stream a coach response from a voice message (audio sent to Gemini).
+  Stream<String> streamCoachResponseFromAudio({
+    required File audioFile,
+    Map<String, dynamic>? profile,
+    Map<String, dynamic>? stats,
+    Map<String, dynamic>? activeProgramme,
+    List<String> conversationHistory = const [],
+  }) async* {
+    Log.debug(_tag, 'Streaming coach voice response...');
+    final model = _getCoachModel();
+    final bytes = await audioFile.readAsBytes();
+
+    final stream = model.generateContentStream([
+      Content.multi([
+        InlineDataPart('audio/mp4', bytes),
+        TextPart(
+          _coachSystemPrompt(
+            profile: profile,
+            stats: stats,
+            activeProgramme: activeProgramme,
+            conversationHistory: conversationHistory,
+            userMessage: '[Voice message — listen to the audio above]',
+          ),
+        ),
+      ]),
+    ]);
+    await for (final chunk in stream) {
+      final text = chunk.text;
+      if (text != null && text.isNotEmpty) {
+        yield text;
+      }
+    }
+  }
+
   // ── Onboarding Conversation ──
 
   static const _onboardingSystemPrompt =
-      '''You are Zenith, an AI life coach conducting an onboarding conversation.
-Your goal is to learn about the user so you can build them a personalised 30-day programme.
+      '''You are Zenith, an AI life coach helping someone define their dream outcome for the next 30 days.
 
-You need to understand:
-1. Where they are in life right now (health, mental state, relationships, career, finances, growth)
-2. What they're struggling with
-3. What they want to achieve / who they want to become
-4. How much time they can commit daily
+The user has ALREADY answered structured questions about their goal areas, pain points, and preferred activities. This context is provided below — DO NOT re-ask ANY of these.
 
-Guidelines:
-- Ask ONE question at a time
-- Be warm, direct, and conversational — not clinical or preachy
+Your job: Have a natural conversation about what they want to BECOME. Help them dream big, get specific, and feel excited about the next 30 days.
+
+CONVERSATION FLOW:
+
+1. FIRST MESSAGE: Briefly acknowledge what you know (1 sentence). Then ask: "So — what do you want to achieve in the next 30 days? Dream big, be honest, say whatever comes to mind."
+
+2. AFTER THEY STATE THEIR GOAL: Help them paint the picture of their dream outcome.
+   - If vague: "When you say '[goal]' — what does that actually look like at day 30? Paint me the picture."
+   - If unrealistic: Don't shut them down. "Love that energy. What would a real first step toward that look like in 30 days?"
+   - If specific: "That's great. What's your starting point right now?"
+   - Keep it conversational — you're two people riffing on a vision, not filling out a form.
+
+3. ONCE YOU HAVE ENOUGH: When you have a clear dream outcome and a sense of where they're starting from, end your response with the exact token [READY_TO_BUILD]. This signals the app to show the "Build my programme" button.
+
+You have enough when you know:
+- What they want to achieve (specific, not vague)
+- Where they're starting from (current level/situation)
+- What "done" looks like at day 30
+
+This usually takes 2-4 exchanges. Don't drag it out.
+
+RULES:
+- Ask exactly ONE question per response
 - Keep responses to 2-3 sentences max
-- Adapt your follow-ups based on what they share
-- If they mention something emotional, acknowledge it before moving on
-- Don't ask more than 6 questions total — you should have enough info by then
-- Never output JSON or structured data — just talk naturally''';
+- NEVER re-ask what the questionnaire already covered (goals, pain points, activities)
+- Every question must be a DIRECT follow-up to what they just said
+- Be encouraging but honest. If something isn't doable in 30 days, say so kindly.
+- Help them think, don't think FOR them
+- If they mention a skill: ask their current level and what success looks like
+- If they mention fitness: ask for numbers
+- If they mention money: ask what specifically
+- Be direct. No therapy-speak. No filler.
+- Never output JSON — just talk naturally
+- Do NOT say "let me build your programme" — the app handles that via [READY_TO_BUILD]''';
 
   /// Get the next onboarding question based on conversation so far.
   /// Pass the full history as alternating user/assistant Content objects.
@@ -533,9 +791,9 @@ Guidelines:
 The user's name is $userName.
 
 CONVERSATION SO FAR:
-${conversationHistory.isEmpty ? '(This is the start — greet them and ask your first question about their life.)' : conversationHistory.join('\n')}
+${conversationHistory.isEmpty ? '(This is the start. Briefly acknowledge what you know, then ask what they want to achieve in the next 30 days.)' : conversationHistory.join('\n')}
 
-${conversationHistory.isEmpty ? '' : 'Continue the conversation. Ask your next question based on what you\'ve learned so far. If you have enough info after ~5-6 exchanges, say something like "I think I have a great picture of where you are and where you want to go. Let me build your programme." — this signals you are done.'}''';
+${conversationHistory.isEmpty ? '' : 'Continue the conversation about their dream outcome. When you have a clear goal, starting point, and picture of day 30, end your response with [READY_TO_BUILD].'}''';
 
     final response = await model.generateContent([Content.text(prompt)]);
     return response.text?.trim() ??
@@ -560,8 +818,8 @@ The user's name is $userName.
 CONVERSATION SO FAR:
 ${conversationHistory.isEmpty ? '(This is the start.)' : conversationHistory.join('\n')}
 
-The user just sent a voice message (audio above). Listen to it and continue the conversation.
-${conversationHistory.length >= 8 ? 'You have enough info now. Wrap up and say something like "I think I have a great picture of where you are and where you want to go. Let me build your programme."' : 'Ask your next question based on what you\'ve learned.'}''';
+The user just sent a voice message (audio above). Listen to it and help them refine their 30-day goal.
+${conversationHistory.length >= 8 ? 'You have enough info now. Wrap up and say something like "I think we\'ve got a solid 30-day goal and a clear plan. Let me build your programme."' : 'Help them think through what their goal requires day-to-day. React to their actual words.'}''';
 
     final response = await model.generateContent([
       Content.multi([InlineDataPart('audio/mp4', bytes), TextPart(prompt)]),
@@ -634,13 +892,46 @@ Programme number: $programmeNumber (${programmeNumber == 1 ? 'First programme - 
 Based on the REAL conversation above, generate a deeply personalized programme.
 Reference specific things the user mentioned. Make it feel like you listened.
 
-Rules:
+CRITICAL RULES FOR HABITS:
+- Generate exactly 2 quests and 4-6 daily habits
+- Habits must be ACTIONS the user actually DOES, not passive observations
+- BAD habits: "Check bank balance", "Write down your weight", "Review your goals" — these are useless busywork
+- GOOD habits: "Do 30 push-ups", "Read for 20 minutes", "No social media before noon", "Cook one healthy meal", "Practise drawing for 15 minutes", "Cold shower", "Write 500 words"
+- If the user wants to make money: habits should be DOING things that make money — "Work on side project for 30 min", "Send 3 cold emails", "Learn one new skill for 20 min" — NOT "check your bank account"
+- If the user wants to break a bad habit: create an ABSTINENCE habit — "No porn", "No social media after 9pm", "No junk food"
+- If the user wants to learn something: create PRACTICE habits — "Sketch 5 objects from life", "Practise guitar for 20 min", "Solve 3 coding problems"
+- Every habit must pass the test: "Will doing this daily for 30 days actually change this person's life?" If the answer is no, don't include it.
+- Use the correct habit type: checkbox (do/don't do), abstinence (NOT doing something), timed (minutes spent), counter (reps/count)
+- For timed habits, set realistic targetValue in minutes
+- For counter habits, set targetValue to a specific count
+- baseXP: 5-20 based on difficulty
+
+PROVEN HABIT LIBRARY — select 4-6 from this list that best match the user's goals. Adapt specifics to their situation. Only create habits NOT in this library if their goals truly demand it.
+
+MORNING: "Morning cold shower (2 min)" [checkbox, discipline, 15 XP] | "10-minute morning meditation" [timed, 10, spiritual, 10 XP] | "Write 3 morning gratitudes" [checkbox, spiritual, 8 XP] | "No phone for first 30 minutes" [abstinence, discipline, 10 XP]
+PHYSICAL: "Do 30 push-ups" [counter, 30, reps, physical, 12 XP] | "Run for 20 minutes" [timed, 20, physical, 15 XP] | "Walk 10,000 steps" [counter, 10000, steps, physical, 10 XP] | "Full body stretch (10 min)" [timed, 10, physical, 8 XP]
+MIND: "Read for 20 minutes" [timed, 20, intellectual, 10 XP] | "Journal for 10 minutes" [timed, 10, intellectual, 10 XP] | "Deep work session (45 min)" [timed, 45, intellectual, 18 XP]
+NUTRITION: "Cook one healthy meal" [checkbox, discipline, 12 XP] | "No junk food" [abstinence, discipline, 10 XP] | "Drink 8 glasses of water" [counter, 8, glasses, physical, 5 XP] | "No alcohol" [abstinence, discipline, 12 XP]
+DIGITAL: "No social media after 9pm" [abstinence, discipline, 10 XP] | "Screen time under 2 hours" [abstinence, discipline, 12 XP] | "No porn" [abstinence, discipline, 15 XP]
+SLEEP: "In bed by 10:30pm" [checkbox, discipline, 10 XP] | "No screens 30 min before bed" [abstinence, discipline, 8 XP]
+CREATIVE: "Practise [skill] for 20 minutes" [timed, 20, creative, 12 XP] | "Write 500 words" [counter, 500, words, creative, 15 XP]
+SOCIAL: "Reach out to one person" [checkbox, social, 8 XP] | "Have one meaningful conversation" [checkbox, social, 10 XP]
+FINANCIAL: "Work on side project for 30 min" [timed, 30, discipline, 15 XP] | "Send 3 outreach emails" [counter, 3, emails, discipline, 12 XP]
+
+OTHER RULES:
 - focusPillars: 1-2 values from: body, mind, relationships, career, finances, growth
-- Generate exactly 2 quests and 4-6 habits
-- primaryStat: body, mind, knowledge, heart, discipline, or craft
-- Each quest should have 2-4 phases
-- baseXP for habits should be 5-20
-- Make habits specific and actionable — tied to what they actually said''';
+- Each habit and quest gets a SPECIFIC sub-skill name (e.g. "Combat" not "Body", "Sketching" not "Craft", "Running" not "Physical")
+- Sub-skill domains: physical, creative, intellectual, social, discipline, spiritual
+- DOMAIN MAPPING — assign the CORRECT domain for the user's goals:
+  physical: running, gym, sports, yoga, martial arts, body challenges
+  creative: drawing, painting, music, writing fiction, design, photography, film
+  intellectual: reading, coding, learning languages, research, studying, system design
+  social: relationships, networking, leadership, communication, mentoring
+  discipline: routines, habits, time management, financial discipline, abstinence
+  spiritual: meditation, mindfulness, journaling, self-reflection, breathwork
+- Pick a fitting emoji for each sub-skill
+- Each quest should have 2-4 phases with concrete daily actions
+- Programme name should be inspiring and specific to THEIR goals, not generic''';
 
     final response = await model.generateContent([Content.text(prompt)]);
     final text = response.text;
